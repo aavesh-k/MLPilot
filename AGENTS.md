@@ -1,16 +1,40 @@
 ## Development
 
-When starting the dev server, use background mode:
+Monorepo: `apps/web` (Astro + React frontend) and `apps/api` (FastAPI backend).
 
-```
-astro dev --background
+### Frontend (`apps/web`)
+
+From `apps/web`, start the dev server in background mode:
+
+```bash
+cd apps/web && npm run dev
 ```
 
 Manage the background server with `astro dev stop`, `astro dev status`, and `astro dev logs`.
+Use `npm run dev:fg` for a foreground dev server.
+
+The Astro dev server proxies `/api` to the FastAPI backend on port 8000, so the
+frontend calls `/api/...` directly (no CORS handling needed in dev).
+
+### Backend (`apps/api`)
+
+```bash
+cd apps/api && uvicorn app.main:app --reload --port 8000
+```
+
+API docs at http://localhost:8000/docs
+
+### Regenerating the API client
+
+With the backend running, from `apps/web`:
+
+```bash
+npm run gen:api
+```
 
 ## Documentation
 
-Full documentation: https://docs.astro.build
+Full Astro documentation: https://docs.astro.build
 
 Consult these guides before working on related tasks:
 

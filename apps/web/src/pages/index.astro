@@ -1,0 +1,18 @@
+---
+import Layout from '../layouts/Layout.astro';
+import DatasetUploader from '../islands/DatasetUploader';
+---
+
+<Layout title="MLPilot — AutoML Studio">
+  <main class="mx-auto flex min-h-screen max-w-5xl flex-col items-start justify-center gap-6 px-6 py-12">
+    <div class="space-y-2">
+      <p class="text-sm font-medium text-muted-foreground">AutoML Studio</p>
+      <h1 class="text-4xl font-bold tracking-tight">MLPilot</h1>
+      <p class="text-muted-foreground">
+        Upload a CSV, pick a target, and get a trained, compared, and explained
+        model — automatically.
+      </p>
+    </div>
+    <DatasetUploader client:load />
+  </main>
+</Layout>
