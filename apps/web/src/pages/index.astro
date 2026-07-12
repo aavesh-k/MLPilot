@@ -1,18 +1,116 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import DatasetUploader from '../islands/DatasetUploader';
+import AppLayout from "../layouts/AppLayout.astro";
+import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
+const workflow = [
+  { step: "01", title: "Upload CSV", desc: "Drop your dataset — validated and profiled in seconds.", ready: true },
+  { step: "02", title: "Preview & Analyze", desc: "Inspect columns, types, and missing values at a glance.", ready: true },
+  { step: "03", title: "Pick a Target", desc: "Choose what to predict; we detect classification vs regression.", ready: true },
+  { step: "04", title: "Train & Compare", desc: "Multiple models trained and ranked automatically.", ready: true },
+  { step: "05", title: "Explain & Export", desc: "Plain-language insights plus downloadable artifacts.", ready: true },
+];
+
+const features = [
+  { title: "Zero-setup training", desc: "From raw CSV to a compared model set without writing a pipeline.", icon: "sparkles" },
+  { title: "Model comparison", desc: "Every candidate ranked by the metrics that matter for your data.", icon: "scale" },
+  { title: "Explainable results", desc: "Clear, human-readable explanations of what drives predictions.", icon: "info" },
+  { title: "One-click exports", desc: "Download cleaned data, the best model, predictions, and a PDF report.", icon: "download" },
+];
+
+const icons: Record<string, string> = {
+  sparkles: "M9.94 14.34a2 2 0 0 0 1.06 1.06l1.5.44-1.5.44a2 2 0 0 0-1.06 1.06l-.44 1.5-.44-1.5a2 2 0 0 0-1.06-1.06l-1.5-.44 1.5-.44a2 2 0 0 0 1.06-1.06zM18 3l.44 1.5a2 2 0 0 0 1.06 1.06L21 6l-1.5.44a2 2 0 0 0-1.06 1.06L18 9l-.44-1.5a2 2 0 0 0-1.06-1.06L15 6l1.5-.44A2 2 0 0 0 18 3z",
+  scale: "M12 3v18M5 7l-3 6a3 3 0 0 0 6 0L5 7zm14 0l-3 6a3 3 0 0 0 6 0l-3-6zM5 7l14 0",
+  info: "M12 16v-4M12 8h.01M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z",
+  download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3",
+};
 ---
 
-<Layout title="MLPilot — AutoML Studio">
-  <main class="mx-auto flex min-h-screen max-w-5xl flex-col items-start justify-center gap-6 px-6 py-12">
-    <div class="space-y-2">
-      <p class="text-sm font-medium text-muted-foreground">AutoML Studio</p>
-      <h1 class="text-4xl font-bold tracking-tight">MLPilot</h1>
-      <p class="text-muted-foreground">
-        Upload a CSV, pick a target, and get a trained, compared, and explained
-        model — automatically.
-      </p>
+<AppLayout title="AutoML Studio — Automated Machine Learning">
+  <!-- Hero -->
+  <section class="flex flex-col items-center gap-6 py-16 text-center md:py-24">
+    <Badge variant="secondary" class="animate-in fade-in slide-in-from-bottom-2">Automated Machine Learning</Badge>
+    <h1 class="max-w-3xl text-4xl font-bold tracking-tight animate-in fade-in slide-in-from-bottom-3 md:text-6xl">
+      Turn a CSV into a <span class="text-primary">compared, explained model</span> — automatically.
+    </h1>
+    <p class="max-w-2xl text-balance text-lg text-muted-foreground animate-in fade-in slide-in-from-bottom-4">
+      Upload a dataset, pick a target, and let AutoML Studio handle training, comparison, and
+      explanation. No pipelines to wire, no boilerplate to maintain.
+    </p>
+    <div class="flex flex-wrap items-center justify-center gap-3 animate-in fade-in slide-in-from-bottom-5">
+      <a href="/upload" class={buttonVariants({ size: "lg" })}>Upload Dataset</a>
+      <a href="/dashboard" class={buttonVariants({ variant: "outline", size: "lg" })}>View Dashboard</a>
     </div>
-    <DatasetUploader client:load />
-  </main>
-</Layout>
+  </section>
+
+  <!-- Workflow illustration -->
+  <section class="py-12">
+    <h2 class="text-2xl font-semibold tracking-tight">How it works</h2>
+    <p class="mt-1 text-muted-foreground">A guided path from raw data to a deployable model.</p>
+    <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      {
+        workflow.map((w) => (
+          <Card class="animate-in fade-in slide-in-from-bottom-4">
+            <CardContent class="flex flex-col gap-2 p-5">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium text-muted-foreground">{w.step}</span>
+                {w.ready ? (
+                  <Badge variant="default">Available</Badge>
+                ) : (
+                  <Badge variant="outline">Soon</Badge>
+                )}
+              </div>
+              <h3 class="font-semibold">{w.title}</h3>
+              <p class="text-sm text-muted-foreground">{w.desc}</p>
+            </CardContent>
+          </Card>
+        ))
+      }
+    </div>
+  </section>
+
+  <!-- Feature cards -->
+  <section class="py-12">
+    <h2 class="text-2xl font-semibold tracking-tight">Why AutoML Studio</h2>
+    <p class="mt-1 text-muted-foreground">Built for practitioners who want results, not plumbing.</p>
+    <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {
+        features.map((f) => (
+          <Card class="animate-in fade-in slide-in-from-bottom-4">
+            <CardContent class="flex flex-col gap-3 p-5">
+              <span class="flex size-9 items-center justify-center rounded-md bg-accent text-accent-foreground">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d={icons[f.icon]} />
+                </svg>
+              </span>
+              <h3 class="font-semibold">{f.title}</h3>
+              <p class="text-sm text-muted-foreground">{f.desc}</p>
+            </CardContent>
+          </Card>
+        ))
+      }
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="my-8 rounded-xl border border-border bg-accent/40 p-8 text-center animate-in fade-in">
+    <h2 class="text-2xl font-semibold tracking-tight">Ready to automate your workflow?</h2>
+    <p class="mx-auto mt-2 max-w-xl text-muted-foreground">
+      Start by uploading a dataset. We'll preview it and surface everything you need to pick a target.
+    </p>
+    <a href="/upload" class={`${buttonVariants({ size: "lg" })} mt-5`}>Upload Dataset</a>
+  </section>
+
+  <!-- Footer -->
+  <footer class="mt-12 border-t border-border py-8 text-sm text-muted-foreground">
+    <div class="flex flex-col items-center justify-between gap-2 md:flex-row">
+      <p>© {new Date().getFullYear()} AutoML Studio. A project for automated machine learning.</p>
+      <div class="flex gap-4">
+        <a href="/upload" class="hover:text-foreground">Upload</a>
+        <a href="/dashboard" class="hover:text-foreground">Dashboard</a>
+        <a href="/settings" class="hover:text-foreground">Settings</a>
+      </div>
+    </div>
+  </footer>
+</AppLayout>

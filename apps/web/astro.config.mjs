@@ -18,7 +18,7 @@ export default defineConfig({
       // Proxy API calls (including SSE) from the Astro dev server to FastAPI.
       proxy: {
         '/api': {
-          target: 'http://localhost:8000',
+          target: 'http://localhost:8001',
           changeOrigin: true,
         },
       },

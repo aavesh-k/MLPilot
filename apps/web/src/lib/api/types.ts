@@ -38,6 +38,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/run/{run_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Result */
+        get: operations["get_result_api_run__run_id__result_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/run/{run_id}/download/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Artifact */
+        get: operations["download_artifact_api_run__run_id__download__kind__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Runs
+         * @description List completed runs across all datasets (newest first).
+         */
+        get: operations["list_runs_api_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/run/{run_id}/stream": {
         parameters: {
             query?: never;
@@ -126,15 +180,78 @@ export interface components {
                 [key: string]: unknown;
             }[];
         };
+        /** FeatureImportance */
+        FeatureImportance: {
+            /** Feature */
+            feature: string;
+            /** Importance */
+            importance: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** ModelResult */
+        ModelResult: {
+            /** Name */
+            name: string;
+            /** Key */
+            key: string;
+            /** Problem Type */
+            problem_type: string;
+            /** Primary Metric */
+            primary_metric: string;
+            /** Primary Score */
+            primary_score: number;
+            /** Metrics */
+            metrics: {
+                [key: string]: number;
+            };
+            /** Cv Mean */
+            cv_mean: number;
+            /** Cv Std */
+            cv_std: number;
+            /** Rank */
+            rank: number;
+            /** Is Best */
+            is_best: boolean;
+        };
         /** RunResponse */
         RunResponse: {
             /** Run Id */
             run_id: string;
+        };
+        /** RunResult */
+        RunResult: {
+            /** Run Id */
+            run_id: string;
+            /** Dataset Id */
+            dataset_id: string;
+            /** Target */
+            target: string;
+            /** Problem Type */
+            problem_type: string;
+            /** N Rows */
+            n_rows: number;
+            /** N Features */
+            n_features: number;
+            /** Primary Metric */
+            primary_metric: string;
+            /** Best Model */
+            best_model: string;
+            /** Models */
+            models: components["schemas"]["ModelResult"][];
+            /** Feature Importance */
+            feature_importance: components["schemas"]["FeatureImportance"][];
+            /** Insights */
+            insights: string[];
+            /** Artifacts */
+            artifacts: {
+                [key: string]: string;
+            };
+            /** Created At */
+            created_at: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -182,7 +299,10 @@ export interface operations {
     };
     create_run_api_run_post: {
         parameters: {
-            query?: never;
+            query: {
+                dataset_id: string;
+                target: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -196,6 +316,98 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_result_api_run__run_id__result_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_artifact_api_run__run_id__download__kind__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_runs_api_runs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResult"][];
                 };
             };
         };

@@ -5,7 +5,7 @@ interface Props {
   title?: string;
 }
 
-const { title = 'MLPilot — AutoML Studio' } = Astro.props;
+const { title = 'AutoML Studio' } = Astro.props;
 ---
 
 <!doctype html>
@@ -13,6 +13,16 @@ const { title = 'MLPilot — AutoML Studio' } = Astro.props;
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <script is:inline>
+      (function () {
+        try {
+          var t = localStorage.getItem("theme");
+          var dark = t ? t === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.classList.toggle("dark", dark);
+        } catch (e) {}
+      })();
+    </script>
     <title>{title}</title>
   </head>
   <body class="min-h-screen bg-background text-foreground antialiased">

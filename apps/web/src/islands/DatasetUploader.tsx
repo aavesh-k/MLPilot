@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -9,7 +11,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { uploadDataset, type DatasetResponse } from "@/lib/api/client";
+import {
+  createRun,
+  downloadRunArtifact,
+  streamRun,
+  uploadDataset,
+  type DatasetResponse,
+  type RunResult,
+} from "@/lib/api/client";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -36,6 +45,18 @@ export default function DatasetUploader() {
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Milestone 03: target selection.
+  const [target, setTarget] = useState<string>("");
+  const [problemType, setProblemType] = useState<string | null>(null);
+
+  // Milestone 04/05: training + results.
+  const [training, setTraining] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [steps, setSteps] = useState<{ name: string; explanation: string; pct: number }[]>([]);
+  const [result, setResult] = useState<RunResult | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
+  const runIdRef = useRef<string | null>(null);
+
   async function handleFile(file: File) {
     if (!file.name.toLowerCase().endsWith(".csv")) {
       setError("Please choose a .csv file.");
@@ -44,12 +65,63 @@ export default function DatasetUploader() {
     setLoading(true);
     setError(null);
     setData(null);
+    setResult(null);
+    setProblemType(null);
+    setSteps([]);
+    setProgress(0);
     try {
-      setData(await uploadDataset(file));
+      const ds = await uploadDataset(file);
+      setData(ds);
+      // Default the target to the last column — a common convention.
+      setTarget(ds.columns[ds.columns.length - 1]?.name ?? "");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function train() {
+    if (!data || !target) return;
+    setTraining(true);
+    setProgress(0);
+    setSteps([]);
+    setResult(null);
+    setRunError(null);
+    setProblemType(null);
+
+    let source: EventSource | null = null;
+    try {
+      const { run_id } = await createRun(data.id, target);
+      runIdRef.current = run_id;
+      source = streamRun(run_id, {
+        onEvent: (ev) => {
+          if (ev.type === "step") {
+            setProgress(ev.pct);
+            setSteps((prev) => [...prev, { name: ev.name, explanation: ev.explanation, pct: ev.pct }]);
+          } else if (ev.type === "result") {
+            setResult(ev.result);
+            setProblemType(ev.result.problem_type);
+          } else if (ev.type === "done") {
+            source?.close();
+            setTraining(false);
+          } else if (ev.type === "error") {
+            setRunError(ev.message);
+            source?.close();
+            setTraining(false);
+          }
+        },
+        onError: (err) => {
+          if (training && !result) {
+            setRunError(err instanceof Error ? err.message : "Training stream lost.");
+          }
+          source?.close();
+          setTraining(false);
+        },
+      });
+    } catch (err) {
+      setRunError(err instanceof Error ? err.message : String(err));
+      setTraining(false);
     }
   }
 
@@ -108,6 +180,88 @@ export default function DatasetUploader() {
             <Stat label="Columns" value={String(data.n_cols)} />
           </div>
 
+          {/* Milestone 03 — Pick a target */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Pick a target</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <label className="flex flex-col gap-1 text-sm">
+                  <span className="text-muted-foreground">Column to predict</span>
+                  <select
+                    value={target}
+                    onChange={(e) => setTarget(e.target.value)}
+                    disabled={training}
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    {data.columns.map((c) => (
+                      <option key={c.name} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button onClick={train} disabled={training || !target}>
+                  {training ? (
+                    <>
+                      <Spinner className="mr-2" /> Training…
+                    </>
+                  ) : (
+                    "Train models"
+                  )}
+                </Button>
+                {problemType && (
+                  <Badge variant="secondary" className="capitalize">
+                    {problemType}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                We automatically detect whether this is a classification or
+                regression problem, then train and compare several models.
+              </p>
+            </CardContent>
+          </Card>
+
+          {runError && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              {runError}
+            </div>
+          )}
+
+          {(training || steps.length > 0) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  {result ? "Training complete" : "Training models"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+                </div>
+                <ul className="space-y-2">
+                  {steps.map((s, i) => (
+                    <li key={i} className="flex gap-2 text-sm">
+                      <span className="mt-0.5 text-primary">✓</span>
+                      <span>
+                        <span className="font-medium capitalize">{s.name}</span>: {s.explanation}
+                      </span>
+                    </li>
+                  ))}
+                  {training && (
+                    <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Spinner /> Working…
+                    </li>
+                  )}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
+          {result && <ResultsPanel result={result} runId={runIdRef.current} />}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Columns & types</CardTitle>
@@ -123,12 +277,15 @@ export default function DatasetUploader() {
                 </TableHeader>
                 <TableBody>
                   {data.columns.map((c) => (
-                    <TableRow key={c.name}>
-                      <TableCell className="font-medium">{c.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{c.dtype}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {c.nulls}
+                    <TableRow key={c.name} className={c.name === target ? "bg-accent/40" : ""}>
+                      <TableCell className="font-medium">
+                        {c.name}
+                        {c.name === target && (
+                          <span className="ml-2 text-xs text-primary">(target)</span>
+                        )}
                       </TableCell>
+                      <TableCell className="text-muted-foreground">{c.dtype}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{c.nulls}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -138,9 +295,7 @@ export default function DatasetUploader() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">
-                Preview (first {data.preview.length} rows)
-              </CardTitle>
+              <CardTitle className="text-base">Preview (first {data.preview.length} rows)</CardTitle>
             </CardHeader>
             <CardContent>
               {data.preview.length > 0 ? (
@@ -173,6 +328,116 @@ export default function DatasetUploader() {
       )}
     </div>
   );
+}
+
+function ResultsPanel({ result, runId }: { result: RunResult; runId: string | null }) {
+  const maxImp = Math.max(...result.feature_importance.map((f) => Math.abs(f.importance)), 1e-9);
+  const metricLabel = result.primary_metric;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <CardTitle className="text-base">
+            {result.problem_type === "classification" ? "Classification" : "Regression"} ·{" "}
+            <span className="text-primary">{result.best_model}</span> wins
+          </CardTitle>
+          <Badge variant="default">Best: {result.best_model}</Badge>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Model comparison */}
+          <div>
+            <p className="mb-2 text-sm font-medium text-muted-foreground">
+              Model comparison (ranked by {metricLabel})
+            </p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">#</TableHead>
+                  <TableHead>Model</TableHead>
+                  <TableHead className="text-right">{metricLabel}</TableHead>
+                  <TableHead className="text-right">CV score</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {result.models.map((m) => (
+                  <TableRow key={m.key} className={m.is_best ? "bg-primary/10" : ""}>
+                    <TableCell className="font-medium">{m.rank}</TableCell>
+                    <TableCell className="font-medium">
+                      {m.name}
+                      {m.is_best && (
+                        <Badge variant="secondary" className="ml-2">best</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatValue(m.metrics[metricLabel] ?? m.primary_score)}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {m.cv_mean.toFixed(3)} ± {m.cv_std.toFixed(3)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Feature importance */}
+          {result.feature_importance.length > 0 && (
+            <div>
+              <p className="mb-2 text-sm font-medium text-muted-foreground">
+                Top drivers (permutation importance)
+              </p>
+              <ul className="space-y-1.5">
+                {result.feature_importance.map((f) => (
+                  <li key={f.feature} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium">{f.feature}</span>
+                      <span className="text-muted-foreground">{f.importance.toFixed(4)}</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full bg-primary"
+                        style={{ width: `${Math.max(2, (Math.abs(f.importance) / maxImp) * 100)}%` }}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Insights */}
+          <div>
+            <p className="mb-2 text-sm font-medium text-muted-foreground">Insights</p>
+            <ul className="list-disc space-y-1 pl-5 text-sm">
+              {result.insights.map((ins, i) => (
+                <li key={i}>{ins}</li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Export */}
+          {runId && (
+            <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+              <a href={downloadRunArtifact(runId, "model")} className={buttonClass()}>
+                Download model
+              </a>
+              <a href={downloadRunArtifact(runId, "predictions")} className={buttonClass()}>
+                Download predictions
+              </a>
+              <a href={downloadRunArtifact(runId, "report")} className={buttonClass()}>
+                Download report
+              </a>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function buttonClass() {
+  return "inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground";
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

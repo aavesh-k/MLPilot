@@ -11,7 +11,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "gen:api": "openapi-typescript http://localhost:8000/openapi.json -o src/lib/api/types.ts"
+    "gen:api": "openapi-typescript http://localhost:8001/openapi.json -o src/lib/api/types.ts"
   },
   "dependencies": {
     "@astrojs/react": "^6.0.1",

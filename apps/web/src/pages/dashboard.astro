@@ -1,0 +1,45 @@
+---
+import AppLayout from "../layouts/AppLayout.astro";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
+---
+
+<AppLayout title="Dashboard — AutoML Studio">
+  <div class="grid gap-6 md:grid-cols-[200px_1fr]">
+    <!-- Sidebar -->
+    <aside class="hidden flex-col gap-1 md:flex">
+      <p class="px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Workspace</p>
+      <a href="/dashboard" class="rounded-md bg-accent px-3 py-2 text-sm font-medium text-accent-foreground">Runs</a>
+      <a href="/reports" class="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">Reports</a>
+      <a href="/settings" class="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">Settings</a>
+    </aside>
+
+    <!-- Content -->
+    <section class="space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p class="text-sm text-muted-foreground">Track your datasets and model runs.</p>
+        </div>
+        <a href="/upload" class={buttonVariants({ size: "sm" })}>New upload</a>
+      </div>
+
+      <Card>
+        <CardContent class="flex flex-col items-center gap-3 p-10 text-center">
+          <span class="flex size-12 items-center justify-center rounded-full bg-accent text-accent-foreground">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></svg>
+          </span>
+          <div>
+            <p class="font-medium">No runs yet</p>
+            <p class="text-sm text-muted-foreground">
+              Upload a dataset, pick a target, and train your first model — it will show up on the
+              <a href="/reports" class="ml-1 text-primary hover:underline">Reports</a> page.
+            </p>
+          </div>
+          <a href="/upload" class={buttonVariants({ size: "sm" })}>Start a run</a>
+        </CardContent>
+      </Card>
+    </section>
+  </div>
+</AppLayout>
