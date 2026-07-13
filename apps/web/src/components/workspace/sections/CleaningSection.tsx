@@ -11,7 +11,7 @@ export default function CleaningSection({ cleaning }: { cleaning: CleaningSummar
         <EmptyState
           icon={<Eraser className="size-5" />}
           title="Cleaning happens on training"
-          hint="Once you train, we drop duplicates and constant columns and cap numeric outliers (1.5×IQR). The summary appears here."
+          hint="Once you train, we drop duplicates and constant columns and cap numeric outliers (1.5\u00d7IQR). The summary appears here."
         />
       </Section>
     );
@@ -21,13 +21,13 @@ export default function CleaningSection({ cleaning }: { cleaning: CleaningSummar
     <Section
       id="cleaning"
       title="Cleaning"
-      description="Applied automatically before training — the data the models actually see."
+      description="Applied automatically before training \u2014 the data the models actually see."
     >
-      <div className="reveal space-y-4">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="reveal space-y-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 stagger">
           <Stat
             label="Rows"
-            value={`${cleaning.rows_before.toLocaleString()} → ${cleaning.rows_after.toLocaleString()}`}
+            value={`${cleaning.rows_before.toLocaleString()} \u2192 ${cleaning.rows_after.toLocaleString()}`}
             tone={cleaning.rows_before !== cleaning.rows_after ? "warn" : "default"}
           />
           <Stat label="Duplicate rows" value={cleaning.dropped_dupes.toLocaleString()} />
@@ -53,7 +53,7 @@ export default function CleaningSection({ cleaning }: { cleaning: CleaningSummar
             )}
             {cleaning.capped_cols.length > 0 && (
               <p className="text-muted-foreground">
-                <span className="font-medium">Outliers capped (1.5×IQR):</span>{" "}
+                <span className="font-medium">Outliers capped (1.5\u00d7IQR):</span>{" "}
                 <span className="text-foreground">
                   {cleaning.capped_cols.map((c) => `${c.col} (${c.count})`).join(", ")}
                 </span>
@@ -62,15 +62,15 @@ export default function CleaningSection({ cleaning }: { cleaning: CleaningSummar
           </div>
         )}
 
-        <div className="rounded-lg border bg-card p-4">
-          <p className="mb-2 text-sm font-medium">Imputation strategy</p>
+        <div className="rounded-xl border bg-card p-4 shadow-sm">
+          <p className="mb-3 text-sm font-medium">Imputation strategy</p>
           <div className="flex flex-wrap gap-2 text-xs">
-            <span className="rounded-md bg-muted px-2.5 py-1">
-              numeric → <span className="font-medium">{cleaning.impute_strategy.numeric ?? "—"}</span>
+            <span className="rounded-lg bg-muted px-3 py-1.5">
+              numeric \u2192 <span className="font-medium">{cleaning.impute_strategy.numeric ?? "\u2014"}</span>
             </span>
-            <span className="rounded-md bg-muted px-2.5 py-1">
-              categorical →{" "}
-              <span className="font-medium">{cleaning.impute_strategy.categorical ?? "—"}</span>
+            <span className="rounded-lg bg-muted px-3 py-1.5">
+              categorical \u2192{" "}
+              <span className="font-medium">{cleaning.impute_strategy.categorical ?? "\u2014"}</span>
             </span>
           </div>
         </div>

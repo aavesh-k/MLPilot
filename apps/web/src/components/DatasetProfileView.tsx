@@ -19,20 +19,12 @@ const KIND_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
   constant: "outline",
 };
 
-// Blue (negative) → neutral → red (positive) for a correlation cell.
-// A gamma curve (a^0.6) lifts low-magnitude correlations so faint values stay
-// visible, while zero still maps to fully transparent (neutral).
 function corrColor(v: number): string {
   const a = Math.pow(Math.min(Math.abs(v), 1), 0.6);
-  if (v >= 0) return `rgba(220, 38, 38, ${a * 0.85})`;
-  return `rgba(37, 99, 235, ${a * 0.85})`;
+  if (v >= 0) return `color-mix(in srgb, var(--chart-pos) ${Math.round(a * 85)}%, transparent)`;
+  return `color-mix(in srgb, var(--chart-neg) ${Math.round(a * 85)}%, transparent)`;
 }
 
-/**
- * Presentational data profile. The fetch + loading/error states live in the
- * Workspace island so the profile can be shared across sections; this only
- * lays the data out. `target` highlights the chosen prediction column.
- */
 export default function DatasetProfileView({
   profile,
   target,
@@ -43,8 +35,7 @@ export default function DatasetProfileView({
   const o = profile.overall;
 
   return (
-    <div className="space-y-4">
-      {/* Overall quality tiles */}
+    <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="Rows" value={o.n_rows.toLocaleString()} />
         <Stat label="Columns" value={String(o.n_cols)} />
@@ -64,25 +55,24 @@ export default function DatasetProfileView({
         {o.datetime_cols > 0 && <Badge variant="outline">{o.datetime_cols} datetime</Badge>}
       </div>
 
-      <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+      <div className="rounded-xl border bg-primary/[0.04] p-4 text-sm shadow-sm">
         <span className="text-muted-foreground">Suggested target: </span>
         <span className="font-medium">{profile.suggested_target}</span>
         <Badge variant="secondary" className="ml-2 capitalize">
           {profile.suggested_task}
         </Badge>
-        <p className="mt-1 text-xs text-muted-foreground text-pretty">
-          It {profile.suggested_reason}
+        <p className="mt-1.5 text-xs text-muted-foreground text-pretty">
+          {profile.suggested_reason}
         </p>
       </div>
 
-      {/* Class balance (classification targets only) */}
       {profile.class_balance.length > 0 && (
-        <div className="rounded-lg border bg-card p-4">
+        <div className="rounded-xl border bg-card p-5 shadow-sm">
           <p className="mb-3 text-sm font-medium">
             Class balance{" "}
-            <span className="text-muted-foreground">· {profile.suggested_target}</span>
+            <span className="text-muted-foreground font-normal">\u00B7 {profile.suggested_target}</span>
           </p>
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {profile.class_balance.map((cb) => (
               <div key={cb.label} className="space-y-1">
                 <div className="flex justify-between text-sm">
@@ -93,7 +83,7 @@ export default function DatasetProfileView({
                 </div>
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                   <div
-                    className="h-full rounded-full bg-primary transition-[width] duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]"
+                    className="h-full rounded-full bg-primary transition-[width] duration-500 ease-[var(--ease-out)]"
                     style={{ width: `${cb.pct}%` }}
                   />
                 </div>
@@ -103,9 +93,8 @@ export default function DatasetProfileView({
         </div>
       )}
 
-      {/* Per-column stats */}
-      <div className="rounded-lg border bg-card">
-        <div className="border-b px-4 py-3">
+      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+        <div className="border-b border-border px-5 py-3.5">
           <p className="text-sm font-medium">Columns</p>
         </div>
         <div className="overflow-x-auto">
@@ -124,7 +113,7 @@ export default function DatasetProfileView({
             </TableHeader>
             <TableBody>
               {profile.columns.map((c) => (
-                <TableRow key={c.name} className={c.name === target ? "bg-primary/5" : ""}>
+                <TableRow key={c.name} className={c.name === target ? "bg-primary/[0.04]" : ""}>
                   <TableCell className="font-medium">
                     {c.name}
                     {c.name === target && (
@@ -135,7 +124,7 @@ export default function DatasetProfileView({
                     <Badge variant={KIND_VARIANT[c.kind] ?? "outline"}>{c.kind}</Badge>
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {c.nulls > 0 ? `${c.nulls} (${c.null_pct}%)` : "—"}
+                    {c.nulls > 0 ? `${c.nulls} (${c.null_pct}%)` : "\u2014"}
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">
                     {c.unique.toLocaleString()}
@@ -150,7 +139,7 @@ export default function DatasetProfileView({
                     {fmtNum(c.max)}
                   </TableCell>
                   <TableCell className="max-w-44 truncate text-muted-foreground" title={c.top ?? ""}>
-                    {c.top ?? "—"}
+                    {c.top ?? "\u2014"}
                   </TableCell>
                 </TableRow>
               ))}
@@ -159,14 +148,11 @@ export default function DatasetProfileView({
         </div>
       </div>
 
-      {/* Correlation heatmap */}
       {profile.correlation_labels.length >= 2 && (
-        <div className="rounded-lg border bg-card p-4">
+        <div className="rounded-xl border bg-card p-5 shadow-sm">
           <p className="mb-1 text-sm font-medium">Numeric correlation</p>
           <p className="mb-3 text-xs text-muted-foreground">
-            Pearson correlation between numeric columns.{" "}
-            <span style={{ color: "var(--chart-pos)" }}>Red</span> is positive,{" "}
-            <span style={{ color: "var(--chart-neg)" }}>blue</span> is negative.
+            Pearson correlation between numeric columns.
           </p>
           <div className="overflow-x-auto">
             <table className="border-separate border-spacing-0.5 text-xs">
@@ -197,8 +183,11 @@ export default function DatasetProfileView({
                       <td
                         key={j}
                         className="h-8 w-10 rounded text-center font-medium tabular-nums"
-                        style={{ backgroundColor: corrColor(v), color: "var(--foreground)" }}
-                        title={`${profile.correlation_labels[i]} × ${profile.correlation_labels[j]} = ${v.toFixed(2)}`}
+                        style={{
+                          backgroundColor: corrColor(v),
+                          color: Math.abs(v) > 0.55 ? "#ffffff" : "var(--foreground)",
+                        }}
+                        title={`${profile.correlation_labels[i]} \u00D7 ${profile.correlation_labels[j]} = ${v.toFixed(2)}`}
                       >
                         {v.toFixed(2)}
                       </td>
@@ -207,6 +196,19 @@ export default function DatasetProfileView({
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: "var(--chart-neg)" }} />
+              \u22121
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2.5 w-2.5 rounded-[2px] border border-border" />0
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: "var(--chart-pos)" }} />
+              +1
+            </span>
           </div>
         </div>
       )}

@@ -14,46 +14,119 @@ const isActive = (href: string) =>
   href === "/" ? path === "/" : path.startsWith(href);
 ---
 
-<header class="sticky top-0 z-40 w-full border-b border-border bg-background/80 backdrop-blur">
-  <nav class="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-    <a href="/" class="flex items-center gap-2 font-semibold tracking-tight">
-      <span class="flex size-7 items-center justify-center rounded-md bg-primary text-sm text-primary-foreground">A</span>
-      AutoML Studio
+<header id="navbar" class="sticky top-0 z-navbar w-full border-b border-border transition-[background-color] duration-[var(--dur-base)] ease-[var(--ease-out)] translucent">
+  <nav class="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+    <a href="/" class="flex items-center gap-2.5 font-semibold tracking-tight press rounded-md px-1 -ml-1">
+      <span class="flex size-7 items-center justify-center rounded-md bg-primary text-[0.625rem] font-bold text-primary-foreground">
+        M
+      </span>
+      <span class="hidden sm:inline">MLPilot</span>
     </a>
 
-    <div class="hidden items-center gap-1 md:flex">
-      {
-        links.map((l) => (
-          <a
-            href={l.href}
-            class={`rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground ${
-              isActive(l.href) ? "font-medium text-foreground" : "text-muted-foreground"
-            }`}
-          >
-            {l.label}
-          </a>
-        ))
-      }
+    <div class="hidden items-center gap-0.5 md:flex">
+      {links.map((l) => (
+        <a
+          href={l.href}
+          class={`press rounded-md px-3 py-1.5 text-sm ${
+            isActive(l.href)
+              ? "bg-primary/10 font-medium text-primary"
+              : "text-muted-foreground hover:bg-accent hover:text-foreground"
+          }`}
+        >
+          {l.label}
+        </a>
+      ))}
     </div>
 
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-1.5">
       <ThemeToggle client:load />
-      <a href="/dashboard" class={`${buttonVariants({ size: "sm" })} hidden sm:inline-flex`}>New run</a>
 
-      <details class="relative md:hidden">
-        <summary class="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-md border border-input transition-colors hover:bg-accent" aria-label="Open menu">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="18" y2="18" /></svg>
-        </summary>
-        <div class="absolute right-0 mt-2 w-44 rounded-md border border-border bg-popover p-1 shadow-md">
-          {
-            links.map((l) => (
-              <a href={l.href} class="block rounded-sm px-3 py-2 text-sm text-popover-foreground hover:bg-accent">
-                {l.label}
-              </a>
-            ))
-          }
-        </div>
-      </details>
+      <a href="/dashboard" class={`${buttonVariants({ size: "sm" })} hidden sm:inline-flex`}>
+        New run
+      </a>
+
+      <button
+        type="button"
+        id="mobile-menu-btn"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="mobile-menu"
+        class="flex md:hidden h-9 w-9 items-center justify-center rounded-md border border-input press hover:bg-accent"
+        onclick="
+          const menu = document.getElementById('mobile-menu');
+          const btn = this;
+          const expanded = btn.getAttribute('aria-expanded') === 'true';
+          const next = !expanded;
+          btn.setAttribute('aria-expanded', String(next));
+          menu.setAttribute('data-open', String(next));
+        "
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="18" y2="18" /></svg>
+      </button>
     </div>
   </nav>
+
+  <div
+    id="mobile-menu"
+    data-open="false"
+    class="overflow-hidden border-t border-border transition-[max-height,opacity] duration-[var(--dur-base)] ease-[var(--ease-out)] md:hidden"
+    style="max-height: 0; opacity: 0;"
+  >
+    <div class="px-4 pb-3 pt-2">
+      {links.map((l) => (
+        <a
+          href={l.href}
+          class={`block rounded-md px-3 py-2 text-sm ${
+            isActive(l.href)
+              ? "bg-primary/10 font-medium text-primary"
+              : "text-muted-foreground hover:bg-accent hover:text-foreground"
+          }`}
+        >
+          {l.label}
+        </a>
+      ))}
+    </div>
+  </div>
 </header>
+
+<script>
+  const navbar = document.getElementById("navbar");
+  const mobileMenu = document.getElementById("mobile-menu");
+
+  if (navbar && mobileMenu) {
+    const menuInner = mobileMenu.querySelector("div");
+    const menuHeight = () => menuInner?.scrollHeight ?? 0;
+
+    const observer = new MutationObserver(() => {
+      const open = mobileMenu.getAttribute("data-open") === "true";
+      if (open) {
+        mobileMenu.style.maxHeight = menuHeight() + "px";
+        mobileMenu.style.opacity = "1";
+      } else {
+        mobileMenu.style.maxHeight = "0";
+        mobileMenu.style.opacity = "0";
+      }
+    });
+    observer.observe(mobileMenu, { attributes: true, attributeFilter: ["data-open"] });
+
+    let ticking = false;
+    window.addEventListener("scroll", () => {
+      if (!ticking) {
+        ticking = true;
+        requestAnimationFrame(() => {
+          ticking = false;
+          const scrollY = window.scrollY;
+          const maxScroll = 200;
+          const progress = Math.min(scrollY / maxScroll, 1);
+          if (progress > 0.05) {
+            navbar.style.backgroundColor = `color-mix(in srgb, var(--color-background) ${70 + progress * 15}%, transparent)`;
+            navbar.style.backdropFilter = `blur(${12 + progress * 12}px) saturate(${160 + progress * 40}%)`;
+          } else {
+            navbar.style.backgroundColor = "";
+            navbar.style.backdropFilter = "";
+          }
+        });
+      }
+    }, { passive: true });
+  }
+</script>

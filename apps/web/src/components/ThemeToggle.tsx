@@ -1,32 +1,48 @@
-import { useEffect, useState } from "react";
+import { useRef, useState, useCallback } from "react";
 import { Moon, Sun } from "lucide-react";
-
+import gsap from "gsap";
 import { Button } from "@/components/ui/button";
+import { prefersReduced, EASES, DURS } from "@/lib/motion";
 
 type Theme = "light" | "dark";
 
+function getInitialTheme(): Theme {
+  if (typeof document === "undefined") return "light";
+  return document.documentElement.classList.contains("dark") ? "dark" : "light";
+}
+
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("light");
+  const iconRef = useRef<HTMLSpanElement>(null);
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
 
-  useEffect(() => {
-    const isDark = document.documentElement.classList.contains("dark");
-    setTheme(isDark ? "dark" : "light");
-  }, []);
-
-  function toggle() {
+  const toggle = useCallback(() => {
     const next: Theme = theme === "dark" ? "light" : "dark";
-    setTheme(next);
     document.documentElement.classList.toggle("dark", next === "dark");
     try {
       localStorage.setItem("theme", next);
     } catch {
-      // ignore storage failures (private mode, etc.)
+      /* private mode */
     }
-  }
+    if (iconRef.current && !prefersReduced()) {
+      gsap.fromTo(iconRef.current,
+        { scale: 1 },
+        { scale: 0.65, duration: 0.08, ease: "power2.in",
+          onComplete: () => {
+            setTheme(next);
+            gsap.to(iconRef.current, { scale: 1, duration: 0.18, ease: "back.out(2)" });
+          }
+        }
+      );
+    } else {
+      setTheme(next);
+    }
+  }, [theme]);
 
   return (
-    <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
-      {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+    <Button variant="ghost" size="icon" onClick={toggle} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>
+      <span ref={iconRef} className="inline-flex">
+        {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      </span>
     </Button>
   );
 }

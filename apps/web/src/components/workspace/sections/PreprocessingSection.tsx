@@ -1,11 +1,8 @@
 import { ArrowRight, Cpu, Scaling, SplitSquareHorizontal, Tags } from "lucide-react";
 import { EmptyState } from "@/components/workspace/Section";
 import { Section } from "@/components/workspace/Section";
-import { cn } from "@/lib/utils";
 import type { CleaningSummary } from "@/lib/api/client";
 
-/** The automatic preprocessing pipeline. Numbers come from the cleaning summary
- *  once a run exists; otherwise the defaults (locked for V1) are shown. */
 export default function PreprocessingSection({
   cleaning,
 }: {
@@ -18,7 +15,7 @@ export default function PreprocessingSection({
     {
       icon: Cpu,
       title: "Impute",
-      detail: `numeric → ${numImpute}, categorical → ${catImpute}`,
+      detail: `numeric \u2192 ${numImpute}, categorical \u2192 ${catImpute}`,
     },
     { icon: Tags, title: "Encode", detail: "one-hot for low-cardinality, label for high" },
     { icon: Scaling, title: "Scale", detail: "standardize numeric features" },
@@ -47,9 +44,9 @@ export default function PreprocessingSection({
         {steps.map((s, i) => {
           const Icon = s.icon;
           return (
-            <li key={s.title} className="relative rounded-lg border bg-card p-4">
+            <li key={s.title} className="relative rounded-xl border bg-card p-4 shadow-sm">
               <div className="flex items-center gap-2">
-                <span className="flex size-8 items-center justify-center rounded-md bg-accent text-accent-foreground">
+                <span className="flex size-8 items-center justify-center rounded-lg bg-accent text-accent-foreground">
                   <Icon className="size-4" />
                 </span>
                 <p className="font-medium">{s.title}</p>

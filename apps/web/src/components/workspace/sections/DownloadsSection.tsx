@@ -1,4 +1,4 @@
-import { Download, FileBox, FileJson, FileSpreadsheet, FileText } from "lucide-react";
+import { Download, FileBox, FileSpreadsheet, FileText } from "lucide-react";
 import { EmptyState } from "@/components/workspace/Section";
 import { Section } from "@/components/workspace/Section";
 import { Badge } from "@/components/ui/badge";
@@ -57,10 +57,10 @@ export default function DownloadsSection({
               key={a.key}
               href={ready ? downloadRunArtifact(runId, a.key) : "#"}
               aria-disabled={!ready}
-              className="press flex flex-col gap-2 rounded-lg border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/30 aria-disabled:pointer-events-none aria-disabled:opacity-50"
+              className="press flex flex-col gap-2 surface-raised p-4 transition-[border-color,background-color,transform] hover:border-primary/40 hover:bg-accent/30 aria-disabled:pointer-events-none aria-disabled:opacity-50"
             >
               <div className="flex items-center justify-between">
-                <span className="flex size-9 items-center justify-center rounded-md bg-accent text-accent-foreground">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-accent text-accent-foreground">
                   <Icon className="size-4" />
                 </span>
                 {ready ? (

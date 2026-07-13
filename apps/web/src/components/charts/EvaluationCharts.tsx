@@ -1,4 +1,3 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Evaluation } from "@/lib/api/client";
 import ConfusionMatrix from "./ConfusionMatrix";
 import RocCurve from "./RocCurve";
@@ -7,10 +6,6 @@ import PredVsActual from "./PredVsActual";
 import ResidualPlot from "./ResidualPlot";
 import CorrelationHeatmap from "./CorrelationHeatmap";
 
-/**
- * Visualizations for the best model, rendered conditionally by problem type.
- * All chart data is computed server-side (M5); this only lays it out.
- */
 export default function EvaluationCharts({
   evaluation,
   problemType,
@@ -32,11 +27,9 @@ export default function EvaluationCharts({
   if (!hasContent) return null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Visualizations</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <div className="surface-raised p-5">
+      <p className="mb-5 text-sm font-medium">Visualizations</p>
+      <div className="space-y-6">
         {isClf ? (
           <div className="grid gap-6 lg:grid-cols-2">
             {evaluation.confusion_matrix && (
@@ -63,7 +56,7 @@ export default function EvaluationCharts({
             <CorrelationHeatmap data={evaluation.correlation} />
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

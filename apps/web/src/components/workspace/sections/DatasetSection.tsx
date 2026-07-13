@@ -34,15 +34,15 @@ export default function DatasetSection({
     <Section
       id="dataset"
       title="Dataset"
-      description="Profiled automatically after upload — types, missingness, balance, and numeric correlations."
+      description="Profiled automatically after upload \u2014 types, missingness, balance, and numeric correlations."
     >
       {profileError ? (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive" role="alert">
           Could not profile dataset: {profileError}
         </div>
       ) : !profile ? (
-        <div className="flex items-center gap-2 rounded-lg border bg-card p-6 text-sm text-muted-foreground">
-          <Spinner /> Profiling your dataset…
+        <div className="flex items-center gap-2 rounded-xl border bg-card p-6 text-sm text-muted-foreground shadow-sm">
+          <Spinner /> Profiling your dataset\u2026
         </div>
       ) : (
         <div className="reveal">
@@ -50,16 +50,15 @@ export default function DatasetSection({
         </div>
       )}
 
-      {/* Raw preview */}
-      <div className="mt-4 rounded-lg border bg-card">
-        <div className="border-b px-4 py-3">
+      <div className="mt-5 overflow-hidden rounded-xl border bg-card shadow-sm">
+        <div className="border-b border-border px-5 py-3.5">
           <p className="text-sm font-medium">
             Preview{" "}
-            <span className="text-muted-foreground">· first {data.preview.length} rows</span>
+            <span className="text-muted-foreground font-normal">\u00B7 {data.preview.length} rows</span>
           </p>
         </div>
-        <div className="overflow-x-auto">
-          {data.preview.length > 0 ? (
+        {data.preview.length > 0 ? (
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -82,10 +81,10 @@ export default function DatasetSection({
                 ))}
               </TableBody>
             </Table>
-          ) : (
-            <p className="p-6 text-sm text-muted-foreground">No rows to preview.</p>
-          )}
-        </div>
+          </div>
+        ) : (
+          <p className="p-6 text-sm text-muted-foreground">No rows to preview.</p>
+        )}
       </div>
     </Section>
   );

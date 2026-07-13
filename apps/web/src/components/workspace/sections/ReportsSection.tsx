@@ -31,7 +31,7 @@ export default function ReportsSection({
     <Section
       id="reports"
       title="Reports"
-      description="Generated automatically after training — a readable summary plus a formatted PDF."
+      description="Generated automatically after training \u2014 a readable summary plus a formatted PDF."
       aside={
         <a
           href={downloadRunArtifact(runId, "pdf")}
@@ -44,24 +44,26 @@ export default function ReportsSection({
       }
     >
       <div className="reveal grid gap-4 md:grid-cols-2">
-        <div className="flex flex-col rounded-lg border bg-card p-4">
+        <div className="surface-raised p-5 flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
             <p className="font-medium">Run report</p>
             <Badge variant="secondary" className="capitalize">
               {result.problem_type}
             </Badge>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">{result.target}</span> ·{" "}
+          <p className="text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">{result.target}</span> \u00B7{" "}
             {result.best_model}
           </p>
-          <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
-            {sampleInsights.map((ins, i) => (
-              <li key={i} className="line-clamp-2 text-pretty">
-                {ins}
-              </li>
-            ))}
-          </ul>
+          {sampleInsights.length > 0 && (
+            <ul className="space-y-1 text-sm text-muted-foreground">
+              {sampleInsights.map((ins, i) => (
+                <li key={i} className="line-clamp-2 text-pretty">
+                  {ins}
+                </li>
+              ))}
+            </ul>
+          )}
           <a
             href={downloadRunArtifact(runId, "report")}
             className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "mt-auto w-fit press")}
@@ -70,7 +72,7 @@ export default function ReportsSection({
           </a>
         </div>
 
-        <div className="flex flex-col rounded-lg border bg-card p-4">
+        <div className="surface-raised p-5 flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
             <p className="font-medium">PDF report</p>
             {result.artifacts?.pdf ? (
@@ -79,7 +81,7 @@ export default function ReportsSection({
               <Badge variant="outline">Unavailable</Badge>
             )}
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             A4-formatted document with the model comparison, top drivers, and cleaning summary.
           </p>
           <a

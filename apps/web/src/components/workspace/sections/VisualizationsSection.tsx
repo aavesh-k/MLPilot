@@ -17,7 +17,7 @@ export default function VisualizationsSection({
         <EmptyState
           icon={<BarChart3 className="size-5" />}
           title="No charts yet"
-          hint="After training, hold-out visualizations render here — confusion / ROC for classification, predicted-vs-actual / residuals for regression, plus a correlation heatmap."
+          hint="After training, hold-out visualizations render here \u2014 confusion / ROC for classification, predicted-vs-actual / residuals for regression, plus a correlation heatmap."
         />
       </Section>
     );

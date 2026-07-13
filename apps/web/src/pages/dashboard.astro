@@ -3,12 +3,12 @@ import AppLayout from "../layouts/AppLayout.astro";
 import Workspace from "../islands/Workspace";
 ---
 
-<AppLayout title="Dashboard — AutoML Studio">
+<AppLayout title="Dashboard — MLPilot">
   <div class="space-y-6">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight">Dashboard</h1>
-      <p class="text-sm text-muted-foreground">
-        Upload a dataset and walk it through profiling, training, and export — all in one place.
+    <div class="flex flex-col gap-1">
+      <h1>Dashboard</h1>
+      <p class="text-muted-foreground">
+        Upload a dataset and walk it through profiling, training, and export.
       </p>
     </div>
     <Workspace client:load />

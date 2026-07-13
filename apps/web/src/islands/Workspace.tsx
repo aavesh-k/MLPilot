@@ -45,7 +45,6 @@ export default function Workspace() {
   const [active, setActive] = useState("overview");
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
-  // Scrollspy: pick the section whose top is closest to (but above) the nav.
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -104,8 +103,6 @@ export default function Workspace() {
     }
   }
 
-  // Fetch the profile whenever a new dataset arrives; default the target to the
-  // suggested column so the user can just hit "Train".
   useEffect(() => {
     if (!data) return;
     let cancelled = false;
@@ -175,7 +172,7 @@ export default function Workspace() {
   function navigate(id: string) {
     const el = sectionRefs.current[id];
     if (!el) return;
-    const top = el.getBoundingClientRect().top + window.scrollY - 80;
+    const top = el.getBoundingClientRect().top + window.scrollY - 88;
     window.scrollTo({ top, behavior: "smooth" });
   }
 
@@ -183,7 +180,7 @@ export default function Workspace() {
     <div className="grid gap-8 lg:grid-cols-[180px_1fr]">
       <SectionNav items={navItems} active={active} onNavigate={navigate} />
 
-      <div className="min-w-0 space-y-12">
+      <div className="min-w-0 space-y-8">
         <MobileSectionNav items={navItems} active={active} onNavigate={navigate} />
 
         <div ref={(el) => setRef("overview", el)}>
@@ -199,7 +196,7 @@ export default function Workspace() {
         </div>
 
         {uploadError && (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive" role="alert">
             {uploadError}
           </div>
         )}

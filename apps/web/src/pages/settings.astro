@@ -8,75 +8,88 @@ import { Spinner } from "@/components/ui/spinner";
 import SettingsDialogDemo from "../islands/SettingsDialogDemo";
 
 const tokens = [
-  { name: "primary", className: "bg-primary border-border" },
+  { name: "primary", className: "bg-primary" },
   { name: "secondary", className: "bg-secondary" },
   { name: "accent", className: "bg-accent" },
   { name: "muted", className: "bg-muted" },
   { name: "destructive", className: "bg-destructive" },
+  { name: "success", className: "bg-success" },
+  { name: "warning", className: "bg-warning" },
+  { name: "info", className: "bg-info" },
   { name: "border", className: "bg-border" },
 ];
 ---
 
-<AppLayout title="Settings — AutoML Studio">
+<AppLayout title="Settings — MLPilot">
   <div class="space-y-6">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight">Settings</h1>
-      <p class="text-sm text-muted-foreground">Workspace preferences and the design system in action.</p>
+    <div class="flex flex-col gap-1">
+      <h1>Settings</h1>
+      <p class="text-muted-foreground">Workspace preferences and component showcase.</p>
     </div>
 
-    <div class="grid gap-6 md:grid-cols-2">
+    <div class="grid gap-5 md:grid-cols-2">
       <Card>
         <CardHeader>
-          <CardTitle class="text-base">Appearance</CardTitle>
+          <CardTitle>Appearance</CardTitle>
         </CardHeader>
         <CardContent class="space-y-3 text-sm text-muted-foreground">
           <p>Use the theme toggle in the top bar to switch between light and dark mode.</p>
-          <p>Your choice is saved to <code class="rounded bg-muted px-1 py-0.5">localStorage</code>.</p>
+          <p>Your choice is saved to <code>localStorage</code>.</p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle class="text-base">Profile</CardTitle>
+          <CardTitle>Profile</CardTitle>
         </CardHeader>
         <CardContent class="space-y-3">
-          <label class="text-sm font-medium" for="ws-name">Workspace name</label>
-          <Input id="ws-name" placeholder="My AutoML workspace" />
-          <Button class="w-full">Save changes</Button>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium" for="ws-name">Workspace name</label>
+            <Input id="ws-name" placeholder="My AutoML workspace" />
+          </div>
+          <Button class="w-full sm:w-auto">Save changes</Button>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card class="md:col-span-2">
         <CardHeader>
-          <CardTitle class="text-base">Components</CardTitle>
+          <CardTitle>Components</CardTitle>
         </CardHeader>
-        <CardContent class="flex flex-wrap items-center gap-3">
-          <Button>Primary</Button>
-          <Button variant="secondary">Secondary</Button>
-          <Button variant="outline">Outline</Button>
-          <Button variant="destructive">Destructive</Button>
-          <span class="inline-flex items-center gap-2 text-sm text-muted-foreground"><Spinner /> Loading</span>
-          <Badge>Default</Badge>
-          <Badge variant="secondary">Secondary</Badge>
-          <Badge variant="outline">Outline</Badge>
+        <CardContent class="space-y-5">
+          <div class="flex flex-wrap items-center gap-2">
+            <Button>Primary</Button>
+            <Button variant="secondary">Secondary</Button>
+            <Button variant="outline">Outline</Button>
+            <Button variant="destructive">Destructive</Button>
+            <Button variant="ghost">Ghost</Button>
+            <Button variant="link">Link</Button>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="inline-flex items-center gap-2 text-sm text-muted-foreground"><Spinner /> Loading</span>
+            <Badge>Default</Badge>
+            <Badge variant="secondary">Secondary</Badge>
+            <Badge variant="outline">Outline</Badge>
+            <Badge variant="destructive">Destructive</Badge>
+            <Badge variant="success">Success</Badge>
+            <Badge variant="warning">Warning</Badge>
+            <Badge variant="info">Info</Badge>
+          </div>
           <SettingsDialogDemo client:load />
         </CardContent>
       </Card>
 
-      <Card>
+      <Card class="md:col-span-2">
         <CardHeader>
-          <CardTitle class="text-base">Color tokens</CardTitle>
+          <CardTitle>Color tokens</CardTitle>
         </CardHeader>
         <CardContent>
-          <div class="grid grid-cols-3 gap-3">
-            {
-              tokens.map((t) => (
-                <div class="flex flex-col items-center gap-2">
-                  <div class={`h-12 w-full rounded-md border ${t.className}`} />
-                  <span class="text-xs text-muted-foreground">{t.name}</span>
-                </div>
-              ))
-            }
+          <div class="grid grid-cols-3 sm:grid-cols-5 gap-3">
+            {tokens.map((t) => (
+              <div key={t.name} class="flex flex-col items-center gap-2">
+                <div class={`h-12 w-full rounded-lg border border-border ${t.className}`} />
+                <span class="text-xs text-muted-foreground">{t.name}</span>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>

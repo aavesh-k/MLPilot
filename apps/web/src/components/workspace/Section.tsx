@@ -1,11 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-/**
- * A dashboard section with an anchor id (for the section nav), a title row, and
- * an optional aside (badges/actions). `scroll-mt` offsets the sticky navbar so
- * anchored jumps don't hide the heading.
- */
 export function Section({
   id,
   title,
@@ -22,14 +17,14 @@ export function Section({
   className?: string;
 }) {
   return (
-    <section id={id} className={cn("scroll-mt-24", className)} aria-labelledby={`${id}-title`}>
+    <section id={id} className={cn("scroll-mt-28", className)} aria-labelledby={`${id}-title`}>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
-          <h2 id={`${id}-title`} className="text-lg font-semibold">
+          <h3 id={`${id}-title`} className="text-lg font-semibold tracking-tight">
             {title}
-          </h2>
+          </h3>
           {description && (
-            <p className="mt-0.5 max-w-prose text-sm text-muted-foreground text-pretty">
+            <p className="mt-1 max-w-prose text-sm text-muted-foreground text-pretty">
               {description}
             </p>
           )}
@@ -41,7 +36,6 @@ export function Section({
   );
 }
 
-/** A quiet placeholder shown before a section has data. */
 export function EmptyState({
   icon,
   title,
@@ -54,9 +48,9 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed bg-card/40 p-10 text-center">
+    <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-muted-foreground/20 bg-card/40 p-8 text-center" aria-live="polite">
       {icon && (
-        <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <span className="flex size-10 items-center justify-center rounded-full bg-accent text-accent-foreground">
           {icon}
         </span>
       )}

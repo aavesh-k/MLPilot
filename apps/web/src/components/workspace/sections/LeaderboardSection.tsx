@@ -34,12 +34,10 @@ export default function LeaderboardSection({ result }: { result: RunResult | nul
     <Section
       id="leaderboard"
       title="Leaderboard"
-      description={`Every candidate ranked by ${metricLabel}${
-        result.problem_type === "classification" ? " (higher is better)" : " (higher is better)"
-      }.`}
+      description={`Every candidate ranked by ${metricLabel} (higher is better).`}
     >
       <div className="reveal space-y-6">
-        <div className="overflow-hidden rounded-lg border bg-card">
+        <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
           <Table>
             <TableHeader>
               <TableRow>
@@ -51,7 +49,7 @@ export default function LeaderboardSection({ result }: { result: RunResult | nul
             </TableHeader>
             <TableBody>
               {result.models.map((m) => (
-                <TableRow key={m.key} className={m.is_best ? "bg-primary/[0.07]" : ""}>
+                <TableRow key={m.key} className={m.is_best ? "bg-primary/[0.06]" : ""}>
                   <TableCell className={cn("font-medium tabular-nums", m.is_best && "text-primary")}>
                     {m.rank}
                   </TableCell>
@@ -66,7 +64,7 @@ export default function LeaderboardSection({ result }: { result: RunResult | nul
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">
                     {m.cv_mean.toFixed(3)}
-                    <span className="text-muted-foreground/60"> ± {m.cv_std.toFixed(3)}</span>
+                    <span className="text-muted-foreground/60"> \u00B1 {m.cv_std.toFixed(3)}</span>
                   </TableCell>
                 </TableRow>
               ))}
@@ -75,12 +73,12 @@ export default function LeaderboardSection({ result }: { result: RunResult | nul
         </div>
 
         {result.feature_importance.length > 0 && (
-          <div className="rounded-lg border bg-card p-4">
-            <p className="mb-3 text-sm font-medium">
+          <div className="rounded-xl border bg-card p-5 shadow-sm">
+            <p className="mb-4 text-sm font-medium">
               Top drivers{" "}
-              <span className="text-muted-foreground">· permutation importance</span>
+              <span className="text-muted-foreground font-normal">\u00B7 permutation importance</span>
             </p>
-            <ul className="space-y-2">
+            <ul className="stagger space-y-3">
               {result.feature_importance.map((f) => (
                 <li key={f.feature} className="space-y-1">
                   <div className="flex justify-between text-sm">
@@ -89,7 +87,7 @@ export default function LeaderboardSection({ result }: { result: RunResult | nul
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-primary transition-[width] duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]"
+                      className="h-full rounded-full bg-primary transition-[width] duration-500 ease-[var(--ease-out)]"
                       style={{ width: `${Math.max(2, (Math.abs(f.importance) / maxImp) * 100)}%` }}
                     />
                   </div>
@@ -100,11 +98,11 @@ export default function LeaderboardSection({ result }: { result: RunResult | nul
         )}
 
         {result.insights.length > 0 && (
-          <div className="rounded-lg border bg-card p-4">
-            <p className="mb-2 flex items-center gap-1.5 text-sm font-medium">
-              <Lightbulb className="size-4 text-amber-500" /> Insights
+          <div className="rounded-xl border bg-card p-5 shadow-sm">
+            <p className="mb-3 flex items-center gap-1.5 text-sm font-medium">
+              <Lightbulb className="size-4 text-warning" /> Insights
             </p>
-            <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground marker:text-foreground/40">
+            <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground marker:text-foreground/30">
               {result.insights.map((ins, i) => (
                 <li key={i} className="text-pretty">
                   {ins}

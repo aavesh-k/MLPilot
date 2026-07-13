@@ -7,12 +7,12 @@ interface Props {
   container?: boolean;
 }
 
-const { title = "AutoML Studio", container = true } = Astro.props;
+const { title = "MLPilot", container = true } = Astro.props;
 ---
 
 <Layout title={title}>
   <Navbar />
-  <main class={container ? "mx-auto w-full max-w-6xl px-4 py-8" : ""}>
+  <main class={container ? "mx-auto w-full max-w-6xl px-4 sm:px-6 py-6 sm:py-8" : ""} data-astro-transition="fade">
     <slot />
   </main>
 </Layout>

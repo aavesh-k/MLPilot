@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -10,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { downloadRunArtifact, type RunResult } from "@/lib/api/client";
+import { cn } from "@/lib/utils";
 
 export default function ReportsList() {
   const [runs, setRuns] = useState<RunResult[] | null>(null);
@@ -34,25 +36,23 @@ export default function ReportsList() {
   }, []);
 
   if (runs === null && !error) {
-    return <p className="text-sm text-muted-foreground">Loading reports…</p>;
+    return <p className="text-sm text-muted-foreground">Loading reports\u2026</p>;
   }
   if (error) {
     return (
-      <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+      <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive" role="alert">
         Could not load reports: {error}
       </div>
     );
   }
   if (runs.length === 0) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-          <p className="font-medium">No reports yet</p>
-          <p className="text-sm text-muted-foreground">
-            Complete a training run from the upload page and it will appear here.
-          </p>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-muted-foreground/20 bg-card/40 p-8 text-center">
+        <p className="text-sm font-medium">No reports yet</p>
+        <p className="mx-auto max-w-sm text-sm text-muted-foreground text-pretty">
+          Complete a training run from the upload page and it will appear here.
+        </p>
+      </div>
     );
   }
 
@@ -82,31 +82,31 @@ export default function ReportsList() {
               </TableHeader>
               <TableBody>
                 {r.models.map((m) => (
-                  <TableRow key={m.key} className={m.is_best ? "bg-primary/10" : ""}>
+                  <TableRow key={m.key} className={m.is_best ? "bg-primary/[0.06]" : ""}>
                     <TableCell className="font-medium">{m.rank}</TableCell>
                     <TableCell className="font-medium">
                       {m.name}
-                      {m.is_best && <Badge variant="secondary" className="ml-2">best</Badge>}
+                      {m.is_best && <Badge variant="default" className="ml-2">best</Badge>}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right tabular-nums">
                       {(m.metrics[r.primary_metric] ?? m.primary_score).toFixed(4)}
                     </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {m.cv_mean.toFixed(3)} ± {m.cv_std.toFixed(3)}
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {m.cv_mean.toFixed(3)} \u00B1 {m.cv_std.toFixed(3)}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
             <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-              <a href={downloadRunArtifact(r.run_id, "model")} className={dlClass()}>Model</a>
-              <a href={downloadRunArtifact(r.run_id, "predictions")} className={dlClass()}>Predictions</a>
-              <a href={downloadRunArtifact(r.run_id, "report")} className={dlClass()}>Report</a>
+              <a href={downloadRunArtifact(r.run_id, "model")} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "press")}>Model</a>
+              <a href={downloadRunArtifact(r.run_id, "predictions")} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "press")}>Predictions</a>
+              <a href={downloadRunArtifact(r.run_id, "report")} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "press")}>Report</a>
               {r.artifacts?.pdf && (
-                <a href={downloadRunArtifact(r.run_id, "pdf")} className={dlClass()}>PDF</a>
+                <a href={downloadRunArtifact(r.run_id, "pdf")} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "press")}>PDF</a>
               )}
               {r.artifacts?.cleaned && (
-                <a href={downloadRunArtifact(r.run_id, "cleaned")} className={dlClass()}>Cleaned CSV</a>
+                <a href={downloadRunArtifact(r.run_id, "cleaned")} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "press")}>Cleaned CSV</a>
               )}
             </div>
           </CardContent>
@@ -114,8 +114,4 @@ export default function ReportsList() {
       ))}
     </div>
   );
-}
-
-function dlClass() {
-  return "inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-3 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground";
 }
