@@ -12,15 +12,18 @@ building ML pipelines by hand.
 ## Architecture decisions (locked for V1)
 
 - **Frontend:** Astro as the shell; interactive pipeline UI is React islands.
-- **Backend:** FastAPI; artifacts stored on local disk under `apps/api/runs/<run_id>`.
+- **Backend:** FastAPI; artifacts stored on local disk under `apps/api/runs/<dataset_id>`.
 - **Progress:** Server-Sent Events. `POST /api/run` returns `{ run_id }`;
   `GET /api/run/{run_id}/stream` streams each pipeline step + plain-language
   explanation, then a `done` event.
 - **Contract:** TypeScript API client is generated from the FastAPI OpenAPI spec
   (`apps/web/src/lib/api`).
 - No database in V1. No auth in V1. Local single-machine.
+- **Ports:** backend and the Astro `/api` proxy both run on **8001** (port 8000
+  is occupied by an unrelated process on this machine).
 
-See `PRD.md` for the full product requirements and `CLAUDE.md` for dev conventions.
+See `PRD.md` for the full product requirements, `milestones.md` for build
+progress (what's done / what's next), and `CLAUDE.md` for dev conventions.
 
 ## Development
 
@@ -30,10 +33,13 @@ See `PRD.md` for the full product requirements and `CLAUDE.md` for dev conventio
 cd apps/api
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e .
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8001
 ```
 
-API docs: http://localhost:8000/docs
+> `uvicorn` is not on the global PATH — activate the venv first, or run it
+> directly: `.venv\Scripts\python -m uvicorn app.main:app --reload --port 8001`.
+
+API docs: http://localhost:8001/docs
 
 ### Frontend (`apps/web`)
 
@@ -43,7 +49,7 @@ npm install
 npm run dev        # background dev server (per CLAUDE.md); use npm run dev:fg for foreground
 ```
 
-App: http://localhost:4321  (proxies `/api` → http://localhost:8000)
+App: http://localhost:4321  (proxies `/api` → http://localhost:8001)
 
 ### Regenerate the TypeScript API client
 
@@ -55,7 +61,12 @@ cd apps/web && npm run gen:api
 
 ## Status
 
-- **M0 — Scaffold + API contract + SSE proxy (current).** No ML logic yet; the
-  landing page has a demo button that calls the real `/api/run` + SSE endpoint.
-- M1+ planned: upload/preview, profiling, preprocessing, training, evaluation,
-  explanations/exports, and a full UI/UX design pass.
+See `milestones.md` for the authoritative, up-to-date breakdown.
+
+- **Done:** M0 scaffold + contract, M1 upload/preview, full training pipeline
+  (target detect, train/compare, importances, insights, SSE, downloads), and
+  **M2 deep profiling**.
+- **Next:** M3 explicit cleaning (dedupe + IQR outlier capping + downloadable
+  cleaned CSV).
+- **Remaining:** M4 fuller model roster, M5 metrics + visualizations, M6 PDF
+  report, M7 UI/UX design pass.

@@ -18,28 +18,57 @@ from typing import Any, Callable
 import joblib
 import numpy as np
 import pandas as pd
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_LEFT
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.platypus import (
+    HRFlowable,
+    ListFlowable,
+    ListItem,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import (
+    AdaBoostClassifier,
+    ExtraTreesClassifier,
+    ExtraTreesRegressor,
     HistGradientBoostingClassifier,
     HistGradientBoostingRegressor,
     RandomForestClassifier,
     RandomForestRegressor,
 )
 from sklearn.inspection import permutation_importance
-from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.linear_model import (
+    ElasticNet,
+    Lasso,
+    LinearRegression,
+    LogisticRegression,
+    Ridge,
+)
 from sklearn.metrics import (
     accuracy_score,
+    confusion_matrix as sk_confusion_matrix,
     f1_score,
+    log_loss,
     mean_absolute_error,
     mean_squared_error,
     precision_score,
     r2_score,
     recall_score,
     roc_auc_score,
+    roc_curve as sk_roc_curve,
 )
 from sklearn.model_selection import KFold, StratifiedKFold, cross_validate, train_test_split
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.naive_bayes import GaussianNB
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.impute import SimpleImputer
@@ -52,6 +81,13 @@ from app.schemas.run import (
     FeatureImportance,
     CleaningSummary,
     CappedColumn,
+    Evaluation,
+    ConfusionMatrix,
+    RocCurve,
+    ClassCount,
+    PredPoint,
+    ResidualPoint,
+    Correlation,
 )
 
 logger = get_logger(__name__)
@@ -184,20 +220,36 @@ def _build_models(problem_type: str, numeric: list[str], categorical: list[str])
     if problem_type == "classification":
         return {
             "Logistic Regression": make_pipeline(pre(), LogisticRegression(max_iter=1000)),
-            "Random Forest": make_pipeline(pre(), RandomForestClassifier(n_estimators=200, n_jobs=-1)),
-            "Gradient Boosting": make_pipeline(pre(), HistGradientBoostingClassifier()),
+            "Decision Tree": make_pipeline(pre(), DecisionTreeClassifier(random_state=42)),
+            "Random Forest": make_pipeline(pre(), RandomForestClassifier(n_estimators=200, n_jobs=-1, random_state=42)),
+            "Extra Trees": make_pipeline(pre(), ExtraTreesClassifier(n_estimators=200, n_jobs=-1, random_state=42)),
+            "Gradient Boosting": make_pipeline(pre(), HistGradientBoostingClassifier(random_state=42)),
+            "AdaBoost": make_pipeline(pre(), AdaBoostClassifier(random_state=42)),
             "K-Nearest Neighbors": make_pipeline(pre(), KNeighborsClassifier()),
+            "Support Vector Machine": make_pipeline(pre(), SVC(probability=True, random_state=42)),
             "Naive Bayes": make_pipeline(pre(), GaussianNB()),
         }
     return {
         "Linear Regression": make_pipeline(pre(), LinearRegression()),
-        "Random Forest": make_pipeline(pre(), RandomForestRegressor(n_estimators=200, n_jobs=-1)),
-        "Gradient Boosting": make_pipeline(pre(), HistGradientBoostingRegressor()),
-        "K-Nearest Neighbors": make_pipeline(pre(), KNeighborsRegressor()),
+        "Ridge Regression": make_pipeline(pre(), Ridge(random_state=42)),
+        "Lasso Regression": make_pipeline(pre(), Lasso(random_state=42)),
+        "Elastic Net": make_pipeline(pre(), ElasticNet(random_state=42)),
+        "Decision Tree": make_pipeline(pre(), DecisionTreeRegressor(random_state=42)),
+        "Random Forest": make_pipeline(pre(), RandomForestRegressor(n_estimators=200, n_jobs=-1, random_state=42)),
+        "Extra Trees": make_pipeline(pre(), ExtraTreesRegressor(n_estimators=200, n_jobs=-1, random_state=42)),
+        "Gradient Boosting": make_pipeline(pre(), HistGradientBoostingRegressor(random_state=42)),
     }
 
 
-def _metrics_for(problem_type: str, y_true: pd.Series, y_pred: np.ndarray, y_proba: np.ndarray | None):
+def _metrics_for(
+    problem_type: str,
+    y_true: pd.Series,
+    y_pred: np.ndarray,
+    y_proba: np.ndarray | None = None,
+    y_proba_full: np.ndarray | None = None,
+    classes: np.ndarray | None = None,
+    n_features: int | None = None,
+):
     if problem_type == "classification":
         out: dict[str, float] = {
             "accuracy": float(accuracy_score(y_true, y_pred)),
@@ -210,12 +262,30 @@ def _metrics_for(problem_type: str, y_true: pd.Series, y_pred: np.ndarray, y_pro
                 out["roc_auc"] = float(roc_auc_score(y_true, y_proba))
             except ValueError:
                 pass
+        if y_proba_full is not None:
+            try:
+                out["log_loss"] = float(log_loss(y_true, y_proba_full, labels=classes))
+            except (ValueError, IndexError):
+                pass
         return out
-    return {
-        "r2": float(r2_score(y_true, y_pred)),
-        "rmse": float(np.sqrt(mean_squared_error(y_true, y_pred))),
+
+    r2 = float(r2_score(y_true, y_pred))
+    mse = float(mean_squared_error(y_true, y_pred))
+    out = {
+        "r2": r2,
+        "rmse": float(np.sqrt(mse)),
+        "mse": mse,
         "mae": float(mean_absolute_error(y_true, y_pred)),
     }
+    # Adjusted R² penalises extra predictors; falls back to R² when the sample is
+    # too small relative to the feature count to compute it meaningfully.
+    if n_features is not None:
+        n = len(y_true)
+        p = n_features
+        out["adjusted_r2"] = (
+            float(1 - (1 - r2) * (n - 1) / (n - p - 1)) if (n - p - 1) > 0 else r2
+        )
+    return out
 
 
 def _primary_metric(problem_type: str, metrics: dict[str, float]) -> str:
@@ -248,6 +318,86 @@ def _feature_importance(pipeline: Any, X: pd.DataFrame, y: pd.Series, primary_me
     ]
     rows.sort(key=lambda r: r.importance, reverse=True)
     return rows[:10]
+
+
+MAX_SCATTER_POINTS = 500
+MAX_ROC_POINTS = 100
+
+
+def _downsample_indices(n: int, k: int) -> list[int]:
+    """Evenly spaced indices (first & last included) for thinning an ordered curve."""
+    if n <= k:
+        return list(range(n))
+    return sorted({int(round(i * (n - 1) / (k - 1))) for i in range(k)})
+
+
+def _sample_indices(n: int, k: int) -> list[int]:
+    """A reproducible random subset of row positions for scatter plots."""
+    if n <= k:
+        return list(range(n))
+    rng = np.random.default_rng(42)
+    return sorted(int(i) for i in rng.choice(n, size=k, replace=False))
+
+
+def _correlation(df: pd.DataFrame) -> Correlation | None:
+    """Numeric Pearson correlation (shared with M2 profiling), capped for readability."""
+    numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])][:30]
+    if len(numeric_cols) < 2:
+        return None
+    corr_df = df[numeric_cols].corr(numeric_only=True).fillna(0.0)
+    labels = [str(c) for c in corr_df.columns]
+    matrix = [[round(float(v), 4) for v in row] for row in corr_df.to_numpy()]
+    return Correlation(labels=labels, matrix=matrix)
+
+
+def _build_evaluation(
+    problem_type: str,
+    pipeline: Any,
+    X_test: pd.DataFrame,
+    y_test: pd.Series,
+    cleaned_df: pd.DataFrame,
+) -> Evaluation:
+    """Chart-ready evaluation data for the best model on the hold-out set."""
+    ev = Evaluation(correlation=_correlation(cleaned_df))
+    y_pred = pipeline.predict(X_test)
+
+    if problem_type == "classification":
+        classes = list(getattr(pipeline, "classes_", sorted(pd.unique(y_test))))
+        cm = sk_confusion_matrix(y_test, y_pred, labels=classes)
+        ev.confusion_matrix = ConfusionMatrix(
+            labels=[str(c) for c in classes],
+            matrix=[[int(v) for v in row] for row in cm],
+        )
+        vc = y_test.value_counts()
+        ev.class_distribution = [
+            ClassCount(label=str(c), count=int(vc.get(c, 0))) for c in classes
+        ]
+        if len(classes) == 2 and hasattr(pipeline, "predict_proba"):
+            try:
+                proba = pipeline.predict_proba(X_test)[:, 1]
+                fpr, tpr, _ = sk_roc_curve(y_test, proba, pos_label=classes[1])
+                idx = _downsample_indices(len(fpr), MAX_ROC_POINTS)
+                ev.roc_curve = RocCurve(
+                    fpr=[float(fpr[i]) for i in idx],
+                    tpr=[float(tpr[i]) for i in idx],
+                    auc=float(roc_auc_score(y_test, proba)),
+                )
+            except (ValueError, IndexError):
+                pass
+        return ev
+
+    # Regression: sampled predicted-vs-actual and residual points.
+    actual = y_test.to_numpy(dtype=float)
+    pred = np.asarray(y_pred, dtype=float)
+    idx = _sample_indices(len(actual), MAX_SCATTER_POINTS)
+    ev.pred_vs_actual = [
+        PredPoint(actual=float(actual[i]), predicted=float(pred[i])) for i in idx
+    ]
+    ev.residuals = [
+        ResidualPoint(predicted=float(pred[i]), residual=float(actual[i] - pred[i]))
+        for i in idx
+    ]
+    return ev
 
 
 def _build_insights(
@@ -290,6 +440,209 @@ def _build_insights(
         "Download the best model, its test-set predictions, or a plain-text report from the results panel."
     )
     return insights
+
+
+_BRAND = colors.HexColor("#4f46e5")
+_INK = colors.HexColor("#1e293b")
+_MUTED = colors.HexColor("#64748b")
+_LINE = colors.HexColor("#e2e8f0")
+_ZEBRA = colors.HexColor("#f8fafc")
+_BAR = colors.HexColor("#6366f1")
+_BAR_BG = colors.HexColor("#eef2ff")
+
+
+def _pdf_styles() -> dict[str, ParagraphStyle]:
+    base = getSampleStyleSheet()
+    return {
+        "title": ParagraphStyle(
+            "amlTitle", parent=base["Title"], fontSize=22, leading=26,
+            textColor=_INK, spaceAfter=2,
+        ),
+        "subtitle": ParagraphStyle(
+            "amlSubtitle", parent=base["Normal"], fontSize=10, leading=14,
+            textColor=_MUTED, spaceAfter=6,
+        ),
+        "h2": ParagraphStyle(
+            "amlH2", parent=base["Heading2"], fontSize=13, leading=16,
+            textColor=_BRAND, spaceBefore=14, spaceAfter=6,
+        ),
+        "body": ParagraphStyle(
+            "amlBody", parent=base["Normal"], fontSize=9.5, leading=14,
+            textColor=_INK, alignment=TA_LEFT,
+        ),
+        "cell": ParagraphStyle(
+            "amlCell", parent=base["Normal"], fontSize=8.5, leading=11,
+            textColor=_INK,
+        ),
+        "cellHead": ParagraphStyle(
+            "amlCellHead", parent=base["Normal"], fontSize=8.5, leading=11,
+            textColor=colors.white, fontName="Helvetica-Bold",
+        ),
+        "meta": ParagraphStyle(
+            "amlMeta", parent=base["Normal"], fontSize=9.5, leading=15,
+            textColor=_INK,
+        ),
+    }
+
+
+def _write_pdf_report(
+    path: Path,
+    *,
+    dataset_id: str,
+    target: str,
+    problem_type: str,
+    primary_metric: str,
+    n_rows: int,
+    n_features: int,
+    best: ModelResult,
+    results: list[ModelResult],
+    insights: list[str],
+    importances: list[FeatureImportance],
+    cleaning: CleaningSummary,
+    created_at: str,
+) -> None:
+    """Render a polished PDF summary of the run with reportlab (pure-Python)."""
+    st = _pdf_styles()
+    doc = SimpleDocTemplate(
+        str(path), pagesize=A4,
+        leftMargin=18 * mm, rightMargin=18 * mm,
+        topMargin=16 * mm, bottomMargin=16 * mm,
+        title="AutoML Studio report", author="AutoML Studio",
+    )
+    story: list[Any] = []
+
+    # --- Header ---
+    story.append(Paragraph("AutoML Studio — Model Report", st["title"]))
+    story.append(Paragraph(f"Generated {created_at}", st["subtitle"]))
+    story.append(HRFlowable(width="100%", thickness=1, color=_LINE, spaceAfter=10))
+
+    # --- Run summary (two-column metadata table) ---
+    story.append(Paragraph("Run summary", st["h2"]))
+    meta_rows = [
+        ("Dataset", dataset_id),
+        ("Target", target),
+        ("Task", problem_type.capitalize()),
+        ("Rows", f"{n_rows:,}"),
+        ("Features used", str(n_features)),
+        ("Primary metric", primary_metric),
+        ("Best model", f"{best.name} ({primary_metric} = {best.primary_score:.4f})"),
+    ]
+    meta_tbl = Table(
+        [[Paragraph(f"<b>{k}</b>", st["meta"]), Paragraph(str(v), st["meta"])] for k, v in meta_rows],
+        colWidths=[38 * mm, 136 * mm],
+    )
+    meta_tbl.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING", (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    story.append(meta_tbl)
+
+    # --- Model comparison table ---
+    story.append(Paragraph("Model comparison", st["h2"]))
+    if problem_type == "classification":
+        headers = ["#", "Model", "Accuracy", "F1", "ROC-AUC", "CV mean", "CV std"]
+        metric_keys = ["accuracy", "f1", "roc_auc"]
+    else:
+        headers = ["#", "Model", "R²", "RMSE", "MAE", "CV mean", "CV std"]
+        metric_keys = ["r2", "rmse", "mae"]
+
+    data = [[Paragraph(h, st["cellHead"]) for h in headers]]
+    for r in results:
+        cells = [str(r.rank), r.name]
+        cells += [f"{r.metrics.get(k, 0):.4f}" for k in metric_keys]
+        cells += [f"{r.cv_mean:.4f}", f"{r.cv_std:.4f}"]
+        data.append([Paragraph(c, st["cell"]) for c in cells])
+
+    comp_tbl = Table(
+        data,
+        colWidths=[8 * mm, 46 * mm, 24 * mm, 24 * mm, 24 * mm, 24 * mm, 24 * mm],
+        repeatRows=1,
+    )
+    style = [
+        ("BACKGROUND", (0, 0), (-1, 0), _BRAND),
+        ("GRID", (0, 0), (-1, -1), 0.5, _LINE),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
+        ("ALIGN", (0, 0), (0, -1), "CENTER"),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]
+    for i in range(1, len(data)):
+        if i % 2 == 0:
+            style.append(("BACKGROUND", (0, i), (-1, i), _ZEBRA))
+    # Highlight the best model row (rank 1 is first after sorting).
+    style.append(("BACKGROUND", (0, 1), (-1, 1), _BAR_BG))
+    style.append(("FONTNAME", (1, 1), (1, 1), "Helvetica-Bold"))
+    comp_tbl.setStyle(TableStyle(style))
+    story.append(comp_tbl)
+
+    # --- Key insights ---
+    if insights:
+        story.append(Paragraph("Key insights", st["h2"]))
+        story.append(ListFlowable(
+            [ListItem(Paragraph(i, st["body"]), leftIndent=6) for i in insights],
+            bulletType="bullet", bulletColor=_BRAND, leftIndent=12,
+        ))
+
+    # --- Top features with inline bars ---
+    if importances:
+        story.append(Paragraph("Top features (permutation importance)", st["h2"]))
+        max_imp = max((abs(f.importance) for f in importances), default=1e-9) or 1e-9
+        rows = []
+        for f in importances:
+            frac = max(0.0, min(1.0, abs(f.importance) / max_imp))
+            bar_w = 60 * mm
+            filled = Table([[""]], colWidths=[max(0.4, frac * bar_w)], rowHeights=[4.5 * mm])
+            filled.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), _BAR),
+                ("LINEBEFORE", (0, 0), (-1, -1), 0, _BAR),
+            ]))
+            rows.append([
+                Paragraph(f.feature, st["cell"]),
+                filled,
+                Paragraph(f"{f.importance:.4f}", st["cell"]),
+            ])
+        feat_tbl = Table(rows, colWidths=[60 * mm, 62 * mm, 22 * mm])
+        feat_tbl.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (2, 0), (2, -1), "RIGHT"),
+            ("TOPPADDING", (0, 0), (-1, -1), 2.5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
+            ("LEFTPADDING", (1, 0), (1, -1), 0),
+        ]))
+        story.append(feat_tbl)
+
+    # --- Cleaning summary ---
+    story.append(Paragraph("Cleaning summary", st["h2"]))
+    dropped_cols = ", ".join(cleaning.dropped_cols) if cleaning.dropped_cols else "none"
+    capped = (
+        ", ".join(f"{c.col} ({c.count})" for c in cleaning.capped_cols)
+        if cleaning.capped_cols else "none"
+    )
+    clean_items = [
+        f"Rows: {cleaning.rows_before:,} → {cleaning.rows_after:,} "
+        f"(dropped {cleaning.dropped_dupes:,} duplicate row(s))",
+        f"Dropped columns: {dropped_cols}",
+        f"Outlier-capped columns: {capped}",
+        f"Imputation: numeric → {cleaning.impute_strategy.get('numeric')}, "
+        f"categorical → {cleaning.impute_strategy.get('categorical')}",
+    ]
+    story.append(ListFlowable(
+        [ListItem(Paragraph(i, st["body"]), leftIndent=6) for i in clean_items],
+        bulletType="bullet", bulletColor=_BRAND, leftIndent=12,
+    ))
+
+    story.append(Spacer(1, 10))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=_LINE, spaceAfter=4))
+    story.append(Paragraph(
+        "Generated by AutoML Studio — upload a CSV, pick a target, get a trained, "
+        "compared, and explained model.",
+        st["subtitle"],
+    ))
+
+    doc.build(story)
 
 
 def train_and_compare(
@@ -374,8 +727,22 @@ def train_and_compare(
         cv_std = float(np.std(cv_res["test_score"]))
         pipe.fit(X_train, y_train)
         y_pred = pipe.predict(X_test)
-        y_proba = pipe.predict_proba(X_test)[:, 1] if hasattr(pipe, "predict_proba") and problem_type == "classification" and y_test.nunique() == 2 else None
-        metrics = _metrics_for(problem_type, y_test, y_pred, y_proba)
+        has_proba = hasattr(pipe, "predict_proba") and problem_type == "classification"
+        y_proba_full = pipe.predict_proba(X_test) if has_proba else None
+        y_proba = (
+            y_proba_full[:, 1]
+            if (y_proba_full is not None and y_test.nunique() == 2)
+            else None
+        )
+        metrics = _metrics_for(
+            problem_type,
+            y_test,
+            y_pred,
+            y_proba,
+            y_proba_full,
+            getattr(pipe, "classes_", None),
+            X_train.shape[1],
+        )
         primary_score = metrics.get(primary_metric, cv_mean)
         results.append(
             ModelResult(
@@ -408,12 +775,16 @@ def train_and_compare(
     importances = _feature_importance(best_pipeline, X_test, y_test, scorer)
     emit({"type": "step", "name": "explain", "explanation": f"Computed feature importances via permutation; top driver: {importances[0].feature if importances else 'n/a'}.", "pct": 97})
 
+    evaluation = _build_evaluation(problem_type, best_pipeline, X_test, y_test, cleaned_df)
+    emit({"type": "step", "name": "visualize", "explanation": "Prepared evaluation charts (confusion matrix / ROC / residuals) from the hold-out set.", "pct": 98})
+
     # Persist artifacts.
     run_dir.mkdir(parents=True, exist_ok=True)
     model_path = run_dir / "best_model.joblib"
     preds_path = run_dir / "test_predictions.csv"
     result_path = run_dir / "result.json"
     report_path = run_dir / "report.md"
+    pdf_path = run_dir / "report.pdf"
 
     joblib.dump(best_pipeline, model_path)
 
@@ -437,11 +808,13 @@ def train_and_compare(
         feature_importance=importances,
         insights=insights,
         cleaning=cleaning,
+        evaluation=evaluation,
         artifacts={
             "model": model_path.name,
             "predictions": preds_path.name,
             "report": report_path.name,
             "cleaned": cleaned_path.name,
+            "pdf": pdf_path.name,
         },
         created_at=datetime.now().isoformat(timespec="seconds"),
     )
@@ -489,6 +862,30 @@ def train_and_compare(
         lines += ["", "## Top features (permutation importance)", ""]
         lines += [f"- {r.feature}: {r.importance:.4f}" for r in importances]
     report_path.write_text("\n".join(lines), encoding="utf-8")
+
+    # PDF report (reportlab, pure-Python — no system deps). Best-effort: a PDF
+    # failure must not sink an otherwise successful run.
+    try:
+        _write_pdf_report(
+            pdf_path,
+            dataset_id=dataset_id,
+            target=target,
+            problem_type=problem_type,
+            primary_metric=primary_metric,
+            n_rows=int(n_rows),
+            n_features=int(X.shape[1]),
+            best=best,
+            results=results,
+            insights=insights,
+            importances=importances,
+            cleaning=cleaning,
+            created_at=result.created_at,
+        )
+        emit({"type": "step", "name": "export", "explanation": "Generated the downloadable PDF report (tables, insights, importances).", "pct": 99})
+    except Exception as exc:  # noqa: BLE001 - PDF is a best-effort artifact
+        logger.warning("PDF report generation failed: %s", exc)
+        result.artifacts.pop("pdf", None)
+        result_path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
 
     emit({"type": "result", "result": json.loads(result.model_dump_json())})
     emit({"type": "done", "message": f"Trained {len(results)} models. Best: {best.name} ({primary_metric} = {best.primary_score:.3f})."})

@@ -126,6 +126,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/datasets/{dataset_id}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Profile Dataset
+         * @description Compute an on-demand statistical profile of a stored dataset.
+         */
+        get: operations["profile_dataset_api_datasets__dataset_id__profile_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -152,6 +172,46 @@ export interface components {
             /** File */
             file: string;
         };
+        /** CappedColumn */
+        CappedColumn: {
+            /** Col */
+            col: string;
+            /** Count */
+            count: number;
+        };
+        /** ClassBalance */
+        ClassBalance: {
+            /** Label */
+            label: string;
+            /** Count */
+            count: number;
+            /** Pct */
+            pct: number;
+        };
+        /** ClassCount */
+        ClassCount: {
+            /** Label */
+            label: string;
+            /** Count */
+            count: number;
+        };
+        /** CleaningSummary */
+        CleaningSummary: {
+            /** Dropped Dupes */
+            dropped_dupes: number;
+            /** Dropped Cols */
+            dropped_cols: string[];
+            /** Capped Cols */
+            capped_cols: components["schemas"]["CappedColumn"][];
+            /** Impute Strategy */
+            impute_strategy: {
+                [key: string]: string;
+            };
+            /** Rows Before */
+            rows_before: number;
+            /** Rows After */
+            rows_after: number;
+        };
         /** ColumnInfo */
         ColumnInfo: {
             /** Name */
@@ -160,6 +220,49 @@ export interface components {
             dtype: string;
             /** Nulls */
             nulls: number;
+        };
+        /** ColumnProfile */
+        ColumnProfile: {
+            /** Name */
+            name: string;
+            /** Dtype */
+            dtype: string;
+            /** Kind */
+            kind: string;
+            /** Nulls */
+            nulls: number;
+            /** Null Pct */
+            null_pct: number;
+            /** Unique */
+            unique: number;
+            /** Is Constant */
+            is_constant: boolean;
+            /** Min */
+            min?: number | null;
+            /** Max */
+            max?: number | null;
+            /** Mean */
+            mean?: number | null;
+            /** Std */
+            std?: number | null;
+            /** Top */
+            top?: string | null;
+            /** Top Freq */
+            top_freq?: number | null;
+        };
+        /** ConfusionMatrix */
+        ConfusionMatrix: {
+            /** Labels */
+            labels: string[];
+            /** Matrix */
+            matrix: number[][];
+        };
+        /** Correlation */
+        Correlation: {
+            /** Labels */
+            labels: string[];
+            /** Matrix */
+            matrix: number[][];
         };
         /** DatasetResponse */
         DatasetResponse: {
@@ -179,6 +282,30 @@ export interface components {
             preview: {
                 [key: string]: unknown;
             }[];
+        };
+        /**
+         * Evaluation
+         * @description Chart-ready data for the best model, evaluated on the hold-out test set.
+         */
+        Evaluation: {
+            confusion_matrix?: components["schemas"]["ConfusionMatrix"] | null;
+            roc_curve?: components["schemas"]["RocCurve"] | null;
+            /**
+             * Class Distribution
+             * @default []
+             */
+            class_distribution: components["schemas"]["ClassCount"][];
+            /**
+             * Pred Vs Actual
+             * @default []
+             */
+            pred_vs_actual: components["schemas"]["PredPoint"][];
+            /**
+             * Residuals
+             * @default []
+             */
+            residuals: components["schemas"]["ResidualPoint"][];
+            correlation?: components["schemas"]["Correlation"] | null;
         };
         /** FeatureImportance */
         FeatureImportance: {
@@ -217,6 +344,72 @@ export interface components {
             /** Is Best */
             is_best: boolean;
         };
+        /** PredPoint */
+        PredPoint: {
+            /** Actual */
+            actual: number;
+            /** Predicted */
+            predicted: number;
+        };
+        /** ProfileOverall */
+        ProfileOverall: {
+            /** N Rows */
+            n_rows: number;
+            /** N Cols */
+            n_cols: number;
+            /** Memory Bytes */
+            memory_bytes: number;
+            /** Duplicate Rows */
+            duplicate_rows: number;
+            /** Missing Cells */
+            missing_cells: number;
+            /** Missing Pct */
+            missing_pct: number;
+            /** Numeric Cols */
+            numeric_cols: number;
+            /** Categorical Cols */
+            categorical_cols: number;
+            /** Datetime Cols */
+            datetime_cols: number;
+            /** Constant Cols */
+            constant_cols: number;
+        };
+        /** ProfileResponse */
+        ProfileResponse: {
+            /** Id */
+            id: string;
+            overall: components["schemas"]["ProfileOverall"];
+            /** Columns */
+            columns: components["schemas"]["ColumnProfile"][];
+            /** Correlation Labels */
+            correlation_labels: string[];
+            /** Correlation */
+            correlation: number[][];
+            /** Suggested Target */
+            suggested_target: string;
+            /** Suggested Task */
+            suggested_task: string;
+            /** Suggested Reason */
+            suggested_reason: string;
+            /** Class Balance */
+            class_balance: components["schemas"]["ClassBalance"][];
+        };
+        /** ResidualPoint */
+        ResidualPoint: {
+            /** Predicted */
+            predicted: number;
+            /** Residual */
+            residual: number;
+        };
+        /** RocCurve */
+        RocCurve: {
+            /** Fpr */
+            fpr: number[];
+            /** Tpr */
+            tpr: number[];
+            /** Auc */
+            auc: number;
+        };
         /** RunResponse */
         RunResponse: {
             /** Run Id */
@@ -246,6 +439,8 @@ export interface components {
             feature_importance: components["schemas"]["FeatureImportance"][];
             /** Insights */
             insights: string[];
+            cleaning: components["schemas"]["CleaningSummary"];
+            evaluation?: components["schemas"]["Evaluation"] | null;
             /** Artifacts */
             artifacts: {
                 [key: string]: string;
@@ -463,6 +658,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DatasetResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    profile_dataset_api_datasets__dataset_id__profile_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileResponse"];
                 };
             };
             /** @description Validation Error */

@@ -102,6 +102,7 @@ def download_artifact(run_id: str, kind: str) -> FileResponse:
         "predictions": "text/csv",
         "report": "text/markdown",
         "cleaned": "text/csv",
+        "pdf": "application/pdf",
     }.get(kind, "application/octet-stream")
     return FileResponse(file_path, media_type=media, filename=f"{run_id}_{kind}{file_path.suffix}")
 

@@ -102,6 +102,12 @@ export default function ReportsList() {
               <a href={downloadRunArtifact(r.run_id, "model")} className={dlClass()}>Model</a>
               <a href={downloadRunArtifact(r.run_id, "predictions")} className={dlClass()}>Predictions</a>
               <a href={downloadRunArtifact(r.run_id, "report")} className={dlClass()}>Report</a>
+              {r.artifacts?.pdf && (
+                <a href={downloadRunArtifact(r.run_id, "pdf")} className={dlClass()}>PDF</a>
+              )}
+              {r.artifacts?.cleaned && (
+                <a href={downloadRunArtifact(r.run_id, "cleaned")} className={dlClass()}>Cleaned CSV</a>
+              )}
             </div>
           </CardContent>
         </Card>

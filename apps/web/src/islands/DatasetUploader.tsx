@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
+import DatasetProfile from "@/components/DatasetProfile";
+import EvaluationCharts from "@/components/charts/EvaluationCharts";
 import {
   Table,
   TableBody,
@@ -16,6 +18,7 @@ import {
   downloadRunArtifact,
   streamRun,
   uploadDataset,
+  type CleaningSummary,
   type DatasetResponse,
   type RunResult,
 } from "@/lib/api/client";
@@ -179,6 +182,9 @@ export default function DatasetUploader() {
             <Stat label="Rows" value={data.n_rows.toLocaleString()} />
             <Stat label="Columns" value={String(data.n_cols)} />
           </div>
+
+          {/* Milestone 02 — Data profile */}
+          <DatasetProfile datasetId={data.id} />
 
           {/* Milestone 03 — Pick a target */}
           <Card>
@@ -406,6 +412,9 @@ function ResultsPanel({ result, runId }: { result: RunResult; runId: string | nu
             </div>
           )}
 
+          {/* Cleaning summary */}
+          {result.cleaning && <CleaningSummaryCard cleaning={result.cleaning} />}
+
           {/* Insights */}
           <div>
             <p className="mb-2 text-sm font-medium text-muted-foreground">Insights</p>
@@ -428,10 +437,61 @@ function ResultsPanel({ result, runId }: { result: RunResult; runId: string | nu
               <a href={downloadRunArtifact(runId, "report")} className={buttonClass()}>
                 Download report
               </a>
+              {result.artifacts?.pdf && (
+                <a href={downloadRunArtifact(runId, "pdf")} className={buttonClass()}>
+                  Download PDF
+                </a>
+              )}
+              <a href={downloadRunArtifact(runId, "cleaned")} className={buttonClass()}>
+                Download cleaned CSV
+              </a>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Milestone 05 — Evaluation charts */}
+      <EvaluationCharts
+        evaluation={result.evaluation}
+        problemType={result.problem_type}
+      />
+    </div>
+  );
+}
+
+function CleaningSummaryCard({ cleaning }: { cleaning: CleaningSummary }) {
+  return (
+    <div>
+      <p className="mb-2 text-sm font-medium text-muted-foreground">Cleaning summary</p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat
+          label="Rows"
+          value={`${cleaning.rows_before.toLocaleString()} → ${cleaning.rows_after.toLocaleString()}`}
+        />
+        <Stat label="Duplicate rows dropped" value={cleaning.dropped_dupes.toLocaleString()} />
+        <Stat label="Columns dropped" value={String(cleaning.dropped_cols.length)} />
+        <Stat label="Columns capped" value={String(cleaning.capped_cols.length)} />
+      </div>
+
+      {cleaning.dropped_cols.length > 0 && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          <span className="font-medium">Dropped (constant/empty):</span>{" "}
+          {cleaning.dropped_cols.join(", ")}
+        </p>
+      )}
+
+      {cleaning.capped_cols.length > 0 && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          <span className="font-medium">Outliers capped (IQR):</span>{" "}
+          {cleaning.capped_cols.map((c) => `${c.col} (${c.count})`).join(", ")}
+        </p>
+      )}
+
+      <p className="mt-1 text-xs text-muted-foreground">
+        <span className="font-medium">Imputation:</span> numeric →{" "}
+        {cleaning.impute_strategy.numeric ?? "—"}, categorical →{" "}
+        {cleaning.impute_strategy.categorical ?? "—"}
+      </p>
     </div>
   );
 }

@@ -24,6 +24,15 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
+
+  /* Data-viz palette (dataviz skill reference instance) — light mode. */
+  --chart-1: #2a78d6; /* blue  — categorical slot 1 / sequential hue */
+  --chart-2: #1baf7a; /* aqua  — categorical slot 2 */
+  --chart-pos: #d03b3b; /* diverging warm pole (positive correlation) */
+  --chart-neg: #2a78d6; /* diverging cool pole (negative correlation) */
+  --chart-grid: #e1e0d9;
+  --chart-axis: #898781;
+  --chart-ref: #898781; /* reference / baseline lines */
 }
 
 .dark {
@@ -46,6 +55,15 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
+
+  /* Data-viz palette — dark steps chosen for the dark surface, not a flip. */
+  --chart-1: #3987e5;
+  --chart-2: #199e70;
+  --chart-pos: #e66767;
+  --chart-neg: #3987e5;
+  --chart-grid: #2c2c2a;
+  --chart-axis: #898781;
+  --chart-ref: #898781;
 }
 
 @theme inline {
