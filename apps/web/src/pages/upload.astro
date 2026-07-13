@@ -1,21 +1,17 @@
 ---
-import AppLayout from "../layouts/AppLayout.astro";
-import DatasetUploader from "../islands/DatasetUploader";
-import { Badge } from "@/components/ui/badge";
+// The upload flow now lives on the dashboard; send anyone hitting /upload there.
 ---
 
-<AppLayout title="Upload Dataset — AutoML Studio">
-  <div class="mx-auto max-w-3xl">
-    <div class="space-y-2">
-      <Badge variant="secondary">Step 1 of 2</Badge>
-      <h1 class="text-3xl font-bold tracking-tight">Upload your dataset</h1>
-      <p class="text-muted-foreground">
-        Drop a CSV below. We validate it, profile the columns and types, then you pick a target
-        and we train and compare real models automatically.
-      </p>
-    </div>
-    <div class="mt-8">
-      <DatasetUploader client:load />
-    </div>
-  </div>
-</AppLayout>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content="0; url=/dashboard" />
+    <link rel="canonical" href="/dashboard" />
+    <title>Redirecting…</title>
+    <script is:inline>window.location.replace("/dashboard");</script>
+  </head>
+  <body>
+    <p>Redirecting to the <a href="/dashboard">dashboard</a>…</p>
+  </body>
+</html>

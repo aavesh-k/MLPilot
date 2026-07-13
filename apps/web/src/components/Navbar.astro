@@ -4,7 +4,6 @@ import { buttonVariants } from "@/components/ui/button";
 
 const links = [
   { href: "/", label: "Home" },
-  { href: "/upload", label: "Upload" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/reports", label: "Reports" },
   { href: "/settings", label: "Settings" },
@@ -39,7 +38,7 @@ const isActive = (href: string) =>
 
     <div class="flex items-center gap-2">
       <ThemeToggle client:load />
-      <a href="/upload" class={`${buttonVariants({ size: "sm" })} hidden sm:inline-flex`}>Upload</a>
+      <a href="/dashboard" class={`${buttonVariants({ size: "sm" })} hidden sm:inline-flex`}>New run</a>
 
       <details class="relative md:hidden">
         <summary class="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-md border border-input transition-colors hover:bg-accent" aria-label="Open menu">

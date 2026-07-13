@@ -39,8 +39,8 @@ const icons: Record<string, string> = {
       explanation. No pipelines to wire, no boilerplate to maintain.
     </p>
     <div class="flex flex-wrap items-center justify-center gap-3 animate-in fade-in slide-in-from-bottom-5">
-      <a href="/upload" class={buttonVariants({ size: "lg" })}>Upload Dataset</a>
-      <a href="/dashboard" class={buttonVariants({ variant: "outline", size: "lg" })}>View Dashboard</a>
+      <a href="/dashboard" class={buttonVariants({ size: "lg" })}>Start a run</a>
+      <a href="/reports" class={buttonVariants({ variant: "outline", size: "lg" })}>View Reports</a>
     </div>
   </section>
 
@@ -99,7 +99,7 @@ const icons: Record<string, string> = {
     <p class="mx-auto mt-2 max-w-xl text-muted-foreground">
       Start by uploading a dataset. We'll preview it and surface everything you need to pick a target.
     </p>
-    <a href="/upload" class={`${buttonVariants({ size: "lg" })} mt-5`}>Upload Dataset</a>
+    <a href="/dashboard" class={`${buttonVariants({ size: "lg" })} mt-5`}>Start a run</a>
   </section>
 
   <!-- Footer -->
@@ -107,8 +107,8 @@ const icons: Record<string, string> = {
     <div class="flex flex-col items-center justify-between gap-2 md:flex-row">
       <p>© {new Date().getFullYear()} AutoML Studio. A project for automated machine learning.</p>
       <div class="flex gap-4">
-        <a href="/upload" class="hover:text-foreground">Upload</a>
         <a href="/dashboard" class="hover:text-foreground">Dashboard</a>
+        <a href="/reports" class="hover:text-foreground">Reports</a>
         <a href="/settings" class="hover:text-foreground">Settings</a>
       </div>
     </div>

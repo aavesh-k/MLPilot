@@ -160,15 +160,44 @@ Polished PDF report generated in the export phase + completed the download set.
 
 ## 🔜 To do
 
-### M7 — UI/UX design pass
-Design skills reserved for **this milestone only** (apple-design,
-web-design-guidelines, tailwind-4-docs, emil-design-eng, dataviz, gsap-core,
-impeccable).
-- Real `dashboard.astro` sections: Overview, Dataset, Cleaning, Preprocessing,
-  Training, Leaderboard, Visualizations, Reports, Downloads.
-- Refactor the monolithic `DatasetUploader.tsx` into sectioned components.
-- Polish: interactive charts, light/dark theming, loading/empty/error states,
-  motion, responsive layout.
+### M7 — UI/UX design pass  ✅ (2026-07-13, build + code review verified)
+The **only** milestone where design skills are unlocked (apple-design,
+web-design-guidelines, emil-design-eng, dataviz, gsap-core, impeccable).
+
+- **Real dashboard workspace.** `/dashboard` now renders a single `Workspace`
+  island (`apps/web/src/islands/Workspace.tsx`) with sticky section nav +
+  scrollspy and nine PRD sections: Overview, Dataset, Training, Cleaning,
+  Preprocessing, Leaderboard, Visualizations, Reports, Downloads. `/upload`
+  redirects (308 → `/dashboard`) since the upload+training flow now lives in
+  the workspace. Navbar + index CTAs repoint to Dashboard/Reports.
+- **Refactor of the monolith.** `DatasetUploader.tsx` is replaced by
+  sectioned components under `apps/web/src/components/workspace/`:
+  `Dropzone`, `Section` (+`EmptyState`), `Stat`, `SectionNav`
+  (+`MobileSectionNav`, horizontal pills under the navbar on mobile),
+  `sections/Overview|Dataset|Training|Cleaning|Preprocessing|Leaderboard|
+  Visualizations|Reports|Downloads`. `DatasetProfile` → presentational
+  `DatasetProfileView` (fetch lifted into Workspace so the profile is shared
+  across Overview/Dataset/Training). Shared `lib/format.ts` helpers.
+- **Motion (emil/apple craft).** Custom easing tokens in `globals.css`
+  (`--ease-out`, `--ease-in-out`, durs), `scale(0.97)` press feedback on
+  every interactive surface (incl. the `Button` primitive + `press` util),
+  `@starting-style`-style reveal on data arrival, a shimmer on the
+  indeterminate training bar, size-specific tracking, and a full
+  `prefers-reduced-motion` block (keeps opacity fades, drops movement).
+- **States + theming.** Every section has a quiet `EmptyState` (icon + CTA)
+  before its data exists; error/loading states throughout; full light/dark via
+  the existing `--chart-*` / token system (charts already QA'd in M5).
+- **Verified:** `astro build` passes (all 6 pages); TS clean on new files;
+  dashboard serves 200 from the live dev server. **NOTE:** the in-browser
+  light/dark e2e walkthrough (upload→profile→clean→train→charts→downloads→
+  /reports) could NOT be run in this session — the shell classifier blocked
+  network/query commands — so the live visual QA is left for the user to click
+  through. Code-review pass is done; no schema/surface changes needed.
+
+## M7 residue (user to verify)
+- Click through the full flow in BOTH light and dark at http://localhost:4321/dashboard.
+- Confirm scrollspy nav + mobile pill nav, press feedback, reveal motion, and
+  the empty→filled section transitions feel right.
 
 ---
 

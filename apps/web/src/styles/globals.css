@@ -6,6 +6,13 @@
 :root {
   color-scheme: light;
   --radius: 0.625rem;
+
+  /* Motion — strong custom curves (built-in easings are too weak).
+     Enter/exit → ease-out; on-screen movement → ease-in-out. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -100,5 +107,111 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    /* Slightly negative tracking on the whole UI reads as more crafted; body
+       stays near 0, headings tighten further via utilities below. */
+    letter-spacing: -0.006em;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* Size-specific tracking: large text reads too loose, so tighten it. */
+  h1,
+  .track-tight-lg {
+    letter-spacing: -0.021em;
+  }
+  h2,
+  h3 {
+    letter-spacing: -0.014em;
+  }
+  /* Smooth, offset anchor scrolling under the sticky navbar. */
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  /* Press feedback — the interface should feel like it hears the user.
+     Applied to interactive chrome that isn't already a <Button>. */
+  .press {
+    transition:
+      transform var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out);
+  }
+  .press:active {
+    transform: scale(0.97);
+  }
+
+  /* Section entrance — elements never appear from nothing (start from 0.98 +
+     a small offset). Sections mount as run data arrives, giving a natural
+     reveal without JS. */
+  .reveal {
+    animation: reveal var(--dur-base) var(--ease-out) both;
+  }
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      transform: translateY(6px) scale(0.995);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  /* Indeterminate progress shimmer for the training bar. */
+  .progress-track {
+    position: relative;
+    overflow: hidden;
+  }
+  .progress-track::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--color-primary) 22%, transparent),
+      transparent
+    );
+    transform: translateX(-100%);
+    animation: progress-shimmer 1.6s var(--ease-in-out) infinite;
+  }
+  @keyframes progress-shimmer {
+    to {
+      transform: translateX(100%);
+    }
+  }
+}
+
+/* Reduced motion — gentler, non-vestibular equivalents. Keep opacity fades
+   that aid comprehension; drop movement, scale, and looping shimmer. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    animation: reveal-fade var(--dur-base) var(--ease-out) both;
+  }
+  @keyframes reveal-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .press:active {
+    transform: none;
+  }
+  .progress-track::after {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
