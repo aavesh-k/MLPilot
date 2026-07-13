@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { Moon, Sun } from "lucide-react";
 import gsap from "gsap";
 import { Button } from "@/components/ui/button";
@@ -6,14 +6,16 @@ import { prefersReduced, EASES, DURS } from "@/lib/motion";
 
 type Theme = "light" | "dark";
 
-function getInitialTheme(): Theme {
-  if (typeof document === "undefined") return "light";
-  return document.documentElement.classList.contains("dark") ? "dark" : "light";
-}
-
 export default function ThemeToggle() {
   const iconRef = useRef<HTMLSpanElement>(null);
-  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+  const [theme, setTheme] = useState<Theme>("light");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const t = document.documentElement.classList.contains("dark") ? "dark" : "light";
+    setTheme(t);
+    setMounted(true);
+  }, []);
 
   const toggle = useCallback(() => {
     const next: Theme = theme === "dark" ? "light" : "dark";
@@ -41,7 +43,7 @@ export default function ThemeToggle() {
   return (
     <Button variant="ghost" size="icon" onClick={toggle} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>
       <span ref={iconRef} className="inline-flex">
-        {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+        {mounted && (theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />)}
       </span>
     </Button>
   );

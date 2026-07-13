@@ -5,12 +5,13 @@ detects whether the problem is classification or regression, ranks the models,
 and exports artifacts (best model, test predictions, report).
 
 Everything here is synchronous and CPU bound; callers should run it in a worker
-thread (see ``app.api.routers.run``) so the event loop stays free.
+thread (see ``app.api.routers.stream``) so the event loop stays free.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -74,7 +75,9 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.impute import SimpleImputer
 
 from app.core.config import settings
+from app.core.io import load_dataframe, detect_problem_type
 from app.core.logging import get_logger
+from app.core.stats import compute_correlation
 from app.schemas.run import (
     RunResult,
     ModelResult,
@@ -87,7 +90,6 @@ from app.schemas.run import (
     ClassCount,
     PredPoint,
     ResidualPoint,
-    Correlation,
 )
 
 logger = get_logger(__name__)
@@ -98,107 +100,9 @@ MAX_TRAIN_ROWS = 30_000
 CV_FOLDS = 5
 MAX_IMPORTANCE_ROWS = 800
 
+_N_JOBS = min(4, os.cpu_count() or 1)
+
 ProgressFn = Callable[[dict[str, Any]], None]
-
-
-def _dataset_path(dataset_id: str) -> Path:
-    return settings.runs_dir / dataset_id / "raw.csv"
-
-
-def load_dataframe(dataset_id: str) -> pd.DataFrame:
-    path = _dataset_path(dataset_id)
-    if not path.exists():
-        raise FileNotFoundError(f"Dataset '{dataset_id}' not found.")
-    return pd.read_csv(path)
-
-
-def detect_problem_type(y: pd.Series) -> tuple[str, str]:
-    """Return (problem_type, human-readable reason) for the target series."""
-    if (
-        y.dtype == object
-        or y.dtype == bool
-        or pd.api.types.is_string_dtype(y)
-        or pd.api.types.is_categorical_dtype(y)
-    ):
-        return "classification", "is non-numeric (text or category)."
-
-    nunique = int(y.nunique(dropna=True))
-    n = len(y)
-    if nunique <= 2:
-        return (
-            "classification",
-            f"has only {nunique} distinct numeric value(s) — it behaves like a label.",
-        )
-    if nunique <= 20 and nunique <= 0.05 * n:
-        return (
-            "classification",
-            f"has only {nunique} distinct values (low cardinality).",
-        )
-    return "regression", f"is continuous with {nunique} distinct values."
-
-
-IQR_MULTIPLIER = 1.5
-
-
-def clean_dataframe(df: pd.DataFrame, target: str) -> tuple[pd.DataFrame, CleaningSummary]:
-    """Explicit, visible cleaning applied before training.
-
-    Drops duplicate rows, drops constant/all-empty columns, and caps numeric
-    outliers to the IQR fences (excluding the target). Imputation/scaling/encoding
-    stay inside the model pipeline; the strategy is recorded here for transparency.
-    Returns the cleaned dataframe and a summary of what changed.
-    """
-    rows_before = len(df)
-
-    # 1. Drop exact duplicate rows.
-    deduped = df.drop_duplicates()
-    dropped_dupes = rows_before - len(deduped)
-    df = deduped
-
-    # 2. Drop constant / all-empty columns (never the target).
-    dropped_cols: list[str] = []
-    for c in df.columns:
-        if c == target:
-            continue
-        if df[c].isna().all() or df[c].nunique(dropna=True) <= 1:
-            dropped_cols.append(c)
-    if dropped_cols:
-        df = df.drop(columns=dropped_cols)
-
-    # 3. IQR outlier capping on numeric feature columns (never the target).
-    capped_cols: list[CappedColumn] = []
-    numeric_features = [
-        c
-        for c in df.columns
-        if c != target and pd.api.types.is_numeric_dtype(df[c])
-    ]
-    df = df.copy()
-    for c in numeric_features:
-        col = df[c]
-        q1 = col.quantile(0.25)
-        q3 = col.quantile(0.75)
-        iqr = q3 - q1
-        if not np.isfinite(iqr) or iqr == 0:
-            continue
-        low = q1 - IQR_MULTIPLIER * iqr
-        high = q3 + IQR_MULTIPLIER * iqr
-        n_capped = int(((col < low) | (col > high)).sum())
-        if n_capped > 0:
-            df[c] = col.clip(lower=low, upper=high)
-            capped_cols.append(CappedColumn(col=str(c), count=n_capped))
-
-    # Record the imputation strategy applied later inside the pipeline.
-    impute_strategy = {"numeric": "median", "categorical": "most_frequent"}
-
-    summary = CleaningSummary(
-        dropped_dupes=int(dropped_dupes),
-        dropped_cols=[str(c) for c in dropped_cols],
-        capped_cols=capped_cols,
-        impute_strategy=impute_strategy,
-        rows_before=int(rows_before),
-        rows_after=int(len(df)),
-    )
-    return df, summary
 
 
 def _build_preprocessor(numeric: list[str], categorical: list[str]) -> ColumnTransformer:
@@ -216,28 +120,31 @@ def _build_preprocessor(numeric: list[str], categorical: list[str]) -> ColumnTra
 
 
 def _build_models(problem_type: str, numeric: list[str], categorical: list[str]) -> dict[str, Any]:
+    def _make(pre, estimator):
+        return make_pipeline(pre(), estimator)
+
     pre = lambda: _build_preprocessor(numeric, categorical)
     if problem_type == "classification":
         return {
-            "Logistic Regression": make_pipeline(pre(), LogisticRegression(max_iter=1000)),
-            "Decision Tree": make_pipeline(pre(), DecisionTreeClassifier(random_state=42)),
-            "Random Forest": make_pipeline(pre(), RandomForestClassifier(n_estimators=200, n_jobs=-1, random_state=42)),
-            "Extra Trees": make_pipeline(pre(), ExtraTreesClassifier(n_estimators=200, n_jobs=-1, random_state=42)),
-            "Gradient Boosting": make_pipeline(pre(), HistGradientBoostingClassifier(random_state=42)),
-            "AdaBoost": make_pipeline(pre(), AdaBoostClassifier(random_state=42)),
-            "K-Nearest Neighbors": make_pipeline(pre(), KNeighborsClassifier()),
-            "Support Vector Machine": make_pipeline(pre(), SVC(probability=True, random_state=42)),
-            "Naive Bayes": make_pipeline(pre(), GaussianNB()),
+            "Logistic Regression": _make(pre, LogisticRegression(max_iter=1000)),
+            "Decision Tree": _make(pre, DecisionTreeClassifier(random_state=42)),
+            "Random Forest": _make(pre, RandomForestClassifier(n_estimators=200, n_jobs=_N_JOBS, random_state=42)),
+            "Extra Trees": _make(pre, ExtraTreesClassifier(n_estimators=200, n_jobs=_N_JOBS, random_state=42)),
+            "Gradient Boosting": _make(pre, HistGradientBoostingClassifier(random_state=42)),
+            "AdaBoost": _make(pre, AdaBoostClassifier(random_state=42)),
+            "K-Nearest Neighbors": _make(pre, KNeighborsClassifier()),
+            "Support Vector Machine": _make(pre, SVC(probability=True, random_state=42)),
+            "Naive Bayes": _make(pre, GaussianNB()),
         }
     return {
-        "Linear Regression": make_pipeline(pre(), LinearRegression()),
-        "Ridge Regression": make_pipeline(pre(), Ridge(random_state=42)),
-        "Lasso Regression": make_pipeline(pre(), Lasso(random_state=42)),
-        "Elastic Net": make_pipeline(pre(), ElasticNet(random_state=42)),
-        "Decision Tree": make_pipeline(pre(), DecisionTreeRegressor(random_state=42)),
-        "Random Forest": make_pipeline(pre(), RandomForestRegressor(n_estimators=200, n_jobs=-1, random_state=42)),
-        "Extra Trees": make_pipeline(pre(), ExtraTreesRegressor(n_estimators=200, n_jobs=-1, random_state=42)),
-        "Gradient Boosting": make_pipeline(pre(), HistGradientBoostingRegressor(random_state=42)),
+        "Linear Regression": _make(pre, LinearRegression()),
+        "Ridge Regression": _make(pre, Ridge(random_state=42)),
+        "Lasso Regression": _make(pre, Lasso(random_state=42)),
+        "Elastic Net": _make(pre, ElasticNet(random_state=42)),
+        "Decision Tree": _make(pre, DecisionTreeRegressor(random_state=42)),
+        "Random Forest": _make(pre, RandomForestRegressor(n_estimators=200, n_jobs=_N_JOBS, random_state=42)),
+        "Extra Trees": _make(pre, ExtraTreesRegressor(n_estimators=200, n_jobs=_N_JOBS, random_state=42)),
+        "Gradient Boosting": _make(pre, HistGradientBoostingRegressor(random_state=42)),
     }
 
 
@@ -261,12 +168,12 @@ def _metrics_for(
             try:
                 out["roc_auc"] = float(roc_auc_score(y_true, y_proba))
             except ValueError:
-                pass
+                logger.debug("roc_auc_score failed for a model")
         if y_proba_full is not None:
             try:
                 out["log_loss"] = float(log_loss(y_true, y_proba_full, labels=classes))
             except (ValueError, IndexError):
-                pass
+                logger.debug("log_loss failed for a model")
         return out
 
     r2 = float(r2_score(y_true, y_pred))
@@ -277,8 +184,6 @@ def _metrics_for(
         "mse": mse,
         "mae": float(mean_absolute_error(y_true, y_pred)),
     }
-    # Adjusted R² penalises extra predictors; falls back to R² when the sample is
-    # too small relative to the feature count to compute it meaningfully.
     if n_features is not None:
         n = len(y_true)
         p = n_features
@@ -288,13 +193,7 @@ def _metrics_for(
     return out
 
 
-def _primary_metric(problem_type: str, metrics: dict[str, float]) -> str:
-    if problem_type == "classification":
-        return "roc_auc" if "roc_auc" in metrics else "accuracy"
-    return "r2"
-
-
-def _feature_importance(pipeline: Any, X: pd.DataFrame, y: pd.Series, primary_metric: str) -> list[FeatureImportance]:
+def _feature_importance(pipeline: Any, X: pd.DataFrame, y: pd.Series, scorer: str) -> list[FeatureImportance]:
     try:
         sample = X.sample(min(MAX_IMPORTANCE_ROWS, len(X)), random_state=42)
         y_sample = y.loc[sample.index]
@@ -304,10 +203,10 @@ def _feature_importance(pipeline: Any, X: pd.DataFrame, y: pd.Series, primary_me
             y_sample,
             n_repeats=5,
             random_state=42,
-            scoring=primary_metric,
+            scoring=scorer,
         )
         importances = result.importances_mean
-    except Exception as exc:  # noqa: BLE001 - importances are best-effort
+    except Exception as exc:
         logger.warning("Permutation importance failed: %s", exc)
         return []
 
@@ -339,26 +238,15 @@ def _sample_indices(n: int, k: int) -> list[int]:
     return sorted(int(i) for i in rng.choice(n, size=k, replace=False))
 
 
-def _correlation(df: pd.DataFrame) -> Correlation | None:
-    """Numeric Pearson correlation (shared with M2 profiling), capped for readability."""
-    numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])][:30]
-    if len(numeric_cols) < 2:
-        return None
-    corr_df = df[numeric_cols].corr(numeric_only=True).fillna(0.0)
-    labels = [str(c) for c in corr_df.columns]
-    matrix = [[round(float(v), 4) for v in row] for row in corr_df.to_numpy()]
-    return Correlation(labels=labels, matrix=matrix)
-
-
 def _build_evaluation(
     problem_type: str,
     pipeline: Any,
     X_test: pd.DataFrame,
     y_test: pd.Series,
-    cleaned_df: pd.DataFrame,
+    X_clean: pd.DataFrame,
 ) -> Evaluation:
     """Chart-ready evaluation data for the best model on the hold-out set."""
-    ev = Evaluation(correlation=_correlation(cleaned_df))
+    ev = Evaluation(correlation=compute_correlation(X_clean))
     y_pred = pipeline.predict(X_test)
 
     if problem_type == "classification":
@@ -442,6 +330,75 @@ def _build_insights(
     return insights
 
 
+IQR_MULTIPLIER = 1.5
+
+
+def clean_dataframe(df: pd.DataFrame, target: str) -> tuple[pd.DataFrame, CleaningSummary]:
+    """Explicit, visible cleaning applied before training.
+
+    Drops duplicate rows, drops constant/all-empty columns, drops rows with
+    missing target values, and caps numeric outliers to the IQR fences
+    (excluding the target). Imputation/scaling/encoding stay inside the model
+    pipeline; the strategy is recorded here for transparency.
+    Returns the cleaned dataframe and a summary of what changed.
+    """
+    df = df.copy()
+    rows_before = len(df)
+
+    # 1. Drop exact duplicate rows.
+    deduped = df.drop_duplicates()
+    dropped_dupes = rows_before - len(deduped)
+    df = deduped
+
+    # 2. Drop constant / all-empty columns (never the target).
+    dropped_cols: list[str] = []
+    for c in df.columns:
+        if c == target:
+            continue
+        if df[c].isna().all() or df[c].nunique(dropna=True) <= 1:
+            dropped_cols.append(c)
+    if dropped_cols:
+        df = df.drop(columns=dropped_cols)
+
+    # 3. Drop rows where the target is missing.
+    rows_before_null_drop = len(df)
+    df = df.loc[df[target].notna()]
+    dropped_target_null = rows_before_null_drop - len(df)
+
+    # 4. IQR outlier capping on numeric feature columns (never the target).
+    capped_cols: list[CappedColumn] = []
+    numeric_features = [
+        c
+        for c in df.columns
+        if c != target and pd.api.types.is_numeric_dtype(df[c])
+    ]
+    for c in numeric_features:
+        col = df[c]
+        q1 = col.quantile(0.25)
+        q3 = col.quantile(0.75)
+        iqr = q3 - q1
+        if not np.isfinite(iqr) or iqr == 0:
+            continue
+        low = q1 - IQR_MULTIPLIER * iqr
+        high = q3 + IQR_MULTIPLIER * iqr
+        n_capped = int(((col < low) | (col > high)).sum())
+        if n_capped > 0:
+            df[c] = col.clip(lower=low, upper=high)
+            capped_cols.append(CappedColumn(col=str(c), count=n_capped))
+
+    impute_strategy = {"numeric": "median", "categorical": "most_frequent"}
+
+    summary = CleaningSummary(
+        dropped_dupes=int(dropped_dupes),
+        dropped_cols=[str(c) for c in dropped_cols],
+        capped_cols=capped_cols,
+        impute_strategy=impute_strategy,
+        rows_before=int(rows_before),
+        rows_after=int(len(df)),
+    )
+    return df, summary
+
+
 _BRAND = colors.HexColor("#4f46e5")
 _INK = colors.HexColor("#1e293b")
 _MUTED = colors.HexColor("#64748b")
@@ -511,12 +468,10 @@ def _write_pdf_report(
     )
     story: list[Any] = []
 
-    # --- Header ---
     story.append(Paragraph("AutoML Studio — Model Report", st["title"]))
     story.append(Paragraph(f"Generated {created_at}", st["subtitle"]))
     story.append(HRFlowable(width="100%", thickness=1, color=_LINE, spaceAfter=10))
 
-    # --- Run summary (two-column metadata table) ---
     story.append(Paragraph("Run summary", st["h2"]))
     meta_rows = [
         ("Dataset", dataset_id),
@@ -539,7 +494,6 @@ def _write_pdf_report(
     ]))
     story.append(meta_tbl)
 
-    # --- Model comparison table ---
     story.append(Paragraph("Model comparison", st["h2"]))
     if problem_type == "classification":
         headers = ["#", "Model", "Accuracy", "F1", "ROC-AUC", "CV mean", "CV std"]
@@ -572,13 +526,11 @@ def _write_pdf_report(
     for i in range(1, len(data)):
         if i % 2 == 0:
             style.append(("BACKGROUND", (0, i), (-1, i), _ZEBRA))
-    # Highlight the best model row (rank 1 is first after sorting).
     style.append(("BACKGROUND", (0, 1), (-1, 1), _BAR_BG))
     style.append(("FONTNAME", (1, 1), (1, 1), "Helvetica-Bold"))
     comp_tbl.setStyle(TableStyle(style))
     story.append(comp_tbl)
 
-    # --- Key insights ---
     if insights:
         story.append(Paragraph("Key insights", st["h2"]))
         story.append(ListFlowable(
@@ -586,7 +538,6 @@ def _write_pdf_report(
             bulletType="bullet", bulletColor=_BRAND, leftIndent=12,
         ))
 
-    # --- Top features with inline bars ---
     if importances:
         story.append(Paragraph("Top features (permutation importance)", st["h2"]))
         max_imp = max((abs(f.importance) for f in importances), default=1e-9) or 1e-9
@@ -614,17 +565,17 @@ def _write_pdf_report(
         ]))
         story.append(feat_tbl)
 
-    # --- Cleaning summary ---
     story.append(Paragraph("Cleaning summary", st["h2"]))
-    dropped_cols = ", ".join(cleaning.dropped_cols) if cleaning.dropped_cols else "none"
+    dropped_cols_text = ", ".join(cleaning.dropped_cols) if cleaning.dropped_cols else "none"
     capped = (
         ", ".join(f"{c.col} ({c.count})" for c in cleaning.capped_cols)
         if cleaning.capped_cols else "none"
     )
     clean_items = [
         f"Rows: {cleaning.rows_before:,} → {cleaning.rows_after:,} "
-        f"(dropped {cleaning.dropped_dupes:,} duplicate row(s))",
-        f"Dropped columns: {dropped_cols}",
+        f"(dropped {cleaning.dropped_dupes:,} duplicate row(s), "
+        f"dropped {cleaning.rows_before - cleaning.rows_after - cleaning.dropped_dupes} row(s) missing target)",
+        f"Dropped columns: {dropped_cols_text}",
         f"Outlier-capped columns: {capped}",
         f"Imputation: numeric → {cleaning.impute_strategy.get('numeric')}, "
         f"categorical → {cleaning.impute_strategy.get('categorical')}",
@@ -663,16 +614,12 @@ def train_and_compare(
     if df[target].isna().all():
         raise ValueError(f"Target column '{target}' has no usable values.")
 
-    y = df[target]
-    problem_type, reason = detect_problem_type(y)
+    y_raw = df[target]
+    problem_type, reason = detect_problem_type(y_raw)
     emit({"type": "step", "name": "analyze", "explanation": f"Detected a {problem_type} problem — {reason}", "pct": 35})
 
-    # Explicit cleaning stage: drop duplicates, drop constant/all-empty columns,
-    # IQR-cap numeric outliers. Then drop rows missing the target.
     run_dir.mkdir(parents=True, exist_ok=True)
     cleaned_df, cleaning = clean_dataframe(df, target)
-    cleaned_df = cleaned_df.loc[cleaned_df[target].notna()]
-    cleaning.rows_after = int(len(cleaned_df))
     cleaned_path = run_dir / "cleaned.csv"
     cleaned_df.to_csv(cleaned_path, index=False)
 
@@ -701,9 +648,14 @@ def train_and_compare(
     # Sample for speed on very large files.
     sampled = len(X) > MAX_TRAIN_ROWS
     if sampled:
-        stratify = y if problem_type == "classification" else None
-        idx = X.sample(MAX_TRAIN_ROWS, random_state=42, stratify=stratify).index
-        X, y = X.loc[idx], y.loc[idx]
+        try:
+            stratify = y if problem_type == "classification" else None
+            idx = X.sample(MAX_TRAIN_ROWS, random_state=42, stratify=stratify).index
+            X, y = X.loc[idx], y.loc[idx]
+        except ValueError:
+            logger.warning("Stratified sampling failed; falling back to random sample.")
+            idx = X.sample(MAX_TRAIN_ROWS, random_state=42).index
+            X, y = X.loc[idx], y.loc[idx]
 
     test_size = 0.2
     stratify = y if problem_type == "classification" else None
@@ -712,17 +664,19 @@ def train_and_compare(
     )
 
     models = _build_models(problem_type, numeric, categorical)
-    primary_metric = _primary_metric(problem_type, {})
-    scorer = primary_metric if problem_type == "regression" else (
-        "roc_auc" if primary_metric == "roc_auc" else "accuracy"
-    )
+
+    # Use accuracy / r2 for CV (always available); promote to roc_auc for
+    # ranking when the test set supports it.
+    scorer = "accuracy" if problem_type == "classification" else "r2"
+    primary_metric = scorer
+
     cv = StratifiedKFold(n_splits=CV_FOLDS, shuffle=True, random_state=42) if problem_type == "classification" else KFold(n_splits=CV_FOLDS, shuffle=True, random_state=42)
 
     results: list[ModelResult] = []
     best_pipeline: Any = None
     best_score = -np.inf
     for name, pipe in models.items():
-        cv_res = cross_validate(pipe, X_train, y_train, cv=cv, scoring=scorer, n_jobs=-1)
+        cv_res = cross_validate(pipe, X_train, y_train, cv=cv, scoring=scorer, n_jobs=_N_JOBS)
         cv_mean = float(np.mean(cv_res["test_score"]))
         cv_std = float(np.std(cv_res["test_score"]))
         pipe.fit(X_train, y_train)
@@ -743,6 +697,11 @@ def train_and_compare(
             getattr(pipe, "classes_", None),
             X_train.shape[1],
         )
+
+        # Promote primary_metric to roc_auc after seeing the first model's metrics.
+        if problem_type == "classification" and "roc_auc" in metrics and primary_metric == "accuracy":
+            primary_metric = "roc_auc"
+
         primary_score = metrics.get(primary_metric, cv_mean)
         results.append(
             ModelResult(
@@ -771,11 +730,19 @@ def train_and_compare(
     emit({"type": "step", "name": "evaluate", "explanation": f"Evaluated {len(results)} models on a held-out test set and ranked them by {primary_metric}.", "pct": 92})
 
     best = results[0]
-    best_pipeline.fit(X_train, y_train)
-    importances = _feature_importance(best_pipeline, X_test, y_test, scorer)
+
+    # Compute actual encoded feature count for adjusted_r2 / reports.
+    try:
+        transformed = best_pipeline[:-1].fit_transform(X_train)
+        n_features_actual = transformed.shape[1]
+    except Exception:
+        n_features_actual = X.shape[1]
+
+    importances = _feature_importance(best_pipeline, X_test, y_test, primary_metric if problem_type == "regression" else "roc_auc" if primary_metric == "roc_auc" else "accuracy")
     emit({"type": "step", "name": "explain", "explanation": f"Computed feature importances via permutation; top driver: {importances[0].feature if importances else 'n/a'}.", "pct": 97})
 
-    evaluation = _build_evaluation(problem_type, best_pipeline, X_test, y_test, cleaned_df)
+    # Use feature-only matrix for evaluation correlation.
+    evaluation = _build_evaluation(problem_type, best_pipeline, X_test, y_test, X)
     emit({"type": "step", "name": "visualize", "explanation": "Prepared evaluation charts (confusion matrix / ROC / residuals) from the hold-out set.", "pct": 98})
 
     # Persist artifacts.
@@ -801,7 +768,7 @@ def train_and_compare(
         target=target,
         problem_type=problem_type,
         n_rows=int(n_rows),
-        n_features=int(X.shape[1]),
+        n_features=int(n_features_actual),
         primary_metric=primary_metric,
         best_model=best.name,
         models=results,
@@ -827,7 +794,7 @@ def train_and_compare(
         f"- Dataset: {dataset_id}",
         f"- Target: {target}",
         f"- Problem type: {problem_type}",
-        f"- Rows: {n_rows:,} · Features used: {X.shape[1]}",
+        f"- Rows: {n_rows:,} · Features used: {n_features_actual}",
         f"- Primary metric: {primary_metric}",
         f"- Best model: {best.name} ({primary_metric} = {best.primary_score:.4f})",
         "",
@@ -873,7 +840,7 @@ def train_and_compare(
             problem_type=problem_type,
             primary_metric=primary_metric,
             n_rows=int(n_rows),
-            n_features=int(X.shape[1]),
+            n_features=int(n_features_actual),
             best=best,
             results=results,
             insights=insights,
@@ -882,11 +849,11 @@ def train_and_compare(
             created_at=result.created_at,
         )
         emit({"type": "step", "name": "export", "explanation": "Generated the downloadable PDF report (tables, insights, importances).", "pct": 99})
-    except Exception as exc:  # noqa: BLE001 - PDF is a best-effort artifact
+    except Exception as exc:
         logger.warning("PDF report generation failed: %s", exc)
         result.artifacts.pop("pdf", None)
         result_path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
 
-    emit({"type": "result", "result": json.loads(result.model_dump_json())})
     emit({"type": "done", "message": f"Trained {len(results)} models. Best: {best.name} ({primary_metric} = {best.primary_score:.3f})."})
+    emit({"type": "result", "result": json.loads(result.model_dump_json())})
     return result

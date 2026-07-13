@@ -12,8 +12,5 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:4321"]
     runs_dir: Path = Path(__file__).resolve().parent.parent.parent / "runs"
 
-    def model_post_init(self, __context) -> None:
-        self.runs_dir.mkdir(parents=True, exist_ok=True)
-
 
 settings = Settings()

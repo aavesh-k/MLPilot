@@ -8,12 +8,10 @@ state is persisted.
 
 from __future__ import annotations
 
-import math
-
-import numpy as np
 import pandas as pd
 
-from app.core.ml import detect_problem_type, load_dataframe
+from app.core.io import detect_problem_type, load_dataframe
+from app.core.stats import clean_float, compute_correlation
 from app.schemas.profile import (
     ClassBalance,
     ColumnProfile,
@@ -21,17 +19,7 @@ from app.schemas.profile import (
     ProfileResponse,
 )
 
-# Correlation matrix gets unwieldy past this many numeric columns; cap it.
-MAX_CORR_COLS = 30
-# Class-balance breakdown is only meaningful for a modest number of classes.
 MAX_BALANCE_CLASSES = 20
-
-
-def _clean_float(value: float) -> float:
-    """Coerce NaN/inf to 0.0 so the result is JSON-serialisable."""
-    if value is None or (isinstance(value, float) and (math.isnan(value) or math.isinf(value))):
-        return 0.0
-    return float(value)
 
 
 def _infer_kind(series: pd.Series) -> str:
@@ -43,7 +31,6 @@ def _infer_kind(series: pd.Series) -> str:
         return "datetime"
     if pd.api.types.is_numeric_dtype(series):
         return "numeric"
-    # Try to detect date-like object columns without mutating the frame.
     if series.dtype == object:
         sample = series.dropna().head(50)
         if len(sample) > 0:
@@ -68,10 +55,10 @@ def _column_profile(name: str, series: pd.Series, kind: str, n_rows: int) -> Col
     if kind == "numeric":
         desc = series.dropna()
         if len(desc) > 0:
-            prof.min = _clean_float(desc.min())
-            prof.max = _clean_float(desc.max())
-            prof.mean = _clean_float(desc.mean())
-            prof.std = _clean_float(desc.std())
+            prof.min = clean_float(desc.min())
+            prof.max = clean_float(desc.max())
+            prof.mean = clean_float(desc.mean())
+            prof.std = clean_float(desc.std())
     elif kind in ("categorical", "boolean"):
         counts = series.dropna().value_counts()
         if len(counts) > 0:
@@ -105,14 +92,9 @@ def build_profile(dataset_id: str) -> ProfileResponse:
     )
 
     # Numeric Pearson correlation (capped for readability).
-    corr_cols = numeric_cols[:MAX_CORR_COLS]
-    if len(corr_cols) >= 2:
-        corr_df = df[corr_cols].corr(numeric_only=True).fillna(0.0)
-        correlation_labels = [str(c) for c in corr_df.columns]
-        correlation = [[round(_clean_float(v), 4) for v in row] for row in corr_df.to_numpy()]
-    else:
-        correlation_labels = []
-        correlation = []
+    corr = compute_correlation(df)
+    correlation_labels = corr.labels if corr else []
+    correlation = corr.matrix if corr else []
 
     # Suggest the last column as target (common convention) and detect its task.
     suggested_target = str(df.columns[-1]) if n_cols else ""

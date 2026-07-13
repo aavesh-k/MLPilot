@@ -37,8 +37,12 @@ export async function createRun(
   target: string,
   signal?: AbortSignal
 ): Promise<RunResponse> {
-  const url = `${BASE}/run?dataset_id=${encodeURIComponent(datasetId)}&target=${encodeURIComponent(target)}`;
-  const res = await fetch(url, { method: "POST", signal });
+  const res = await fetch(`${BASE}/runs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dataset_id: datasetId, target }),
+    signal,
+  });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(text || `createRun failed: ${res.status}`);
@@ -81,7 +85,7 @@ export function streamRun(
     onError?: (error: unknown) => void;
   }
 ): EventSource {
-  const es = new EventSource(`${BASE}/run/${runId}/stream`);
+  const es = new EventSource(`${BASE}/runs/${runId}/stream`);
   es.onmessage = (msg) => {
     try {
       handlers.onEvent(JSON.parse(msg.data) as PipelineEvent);
@@ -97,5 +101,5 @@ export function downloadRunArtifact(
   runId: string,
   kind: "model" | "predictions" | "report" | "cleaned" | "pdf"
 ): string {
-  return `${BASE}/run/${encodeURIComponent(runId)}/download/${kind}`;
+  return `${BASE}/runs/${encodeURIComponent(runId)}/download/${kind}`;
 }

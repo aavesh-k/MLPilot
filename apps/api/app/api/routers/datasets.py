@@ -5,11 +5,12 @@ import pandas as pd
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from app.core.config import settings
+from app.core.io import dataset_path
 from app.core.profiling import build_profile
 from app.schemas.dataset import ColumnInfo, DatasetResponse
 from app.schemas.profile import ProfileResponse
 
-router = APIRouter()
+router = APIRouter(tags=["datasets"])
 
 # M1 preview cap. The full V1 target is ~200 MB, but reading that fully into
 # memory just to preview is risky on a single machine; raise once streaming
@@ -49,9 +50,9 @@ async def upload_dataset(file: UploadFile = File(...)) -> DatasetResponse:
 
     try:
         df = pd.read_csv(raw_path)
-    except Exception as exc:  # noqa: BLE001 - surface parse errors to the user
+    except Exception as exc:
         raw_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=422, detail=f"Could not parse CSV: {exc}")
+        raise HTTPException(status_code=422, detail="Could not parse CSV. Ensure the file is valid UTF-8 with a header row.")
 
     if df.shape[1] == 0:
         raw_path.unlink(missing_ok=True)
@@ -89,9 +90,12 @@ async def upload_dataset(file: UploadFile = File(...)) -> DatasetResponse:
 @router.get("/datasets/{dataset_id}/profile", response_model=ProfileResponse)
 def profile_dataset(dataset_id: str) -> ProfileResponse:
     """Compute an on-demand statistical profile of a stored dataset."""
+    ds_path = dataset_path(dataset_id)
+    if not ds_path.exists():
+        raise HTTPException(status_code=404, detail=f"Dataset '{dataset_id}' not found.")
     try:
         return build_profile(dataset_id)
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Dataset '{dataset_id}' not found.")
-    except Exception as exc:  # noqa: BLE001 - surface profiling errors to the user
-        raise HTTPException(status_code=422, detail=f"Could not profile dataset: {exc}")
+    except Exception as exc:
+        logger = __import__("logging").getLogger(__name__)
+        logger.exception("Failed to profile dataset %s", dataset_id)
+        raise HTTPException(status_code=422, detail=str(exc))

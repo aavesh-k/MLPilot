@@ -21,57 +21,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/run": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Run */
-        post: operations["create_run_api_run_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/run/{run_id}/result": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Result */
-        get: operations["get_result_api_run__run_id__result_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/run/{run_id}/download/{kind}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Download Artifact */
-        get: operations["download_artifact_api_run__run_id__download__kind__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/runs": {
         parameters: {
             query?: never;
@@ -79,11 +28,26 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * List Runs
-         * @description List completed runs across all datasets (newest first).
-         */
+        /** List Runs */
         get: operations["list_runs_api_runs_get"];
+        put?: never;
+        /** Create Run */
+        post: operations["create_run_api_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{run_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Result */
+        get: operations["get_result_api_runs__run_id__result_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -92,7 +56,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/run/{run_id}/stream": {
+    "/api/runs/{run_id}/download/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Artifact */
+        get: operations["download_artifact_api_runs__run_id__download__kind__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{run_id}/stream": {
         parameters: {
             query?: never;
             header?: never;
@@ -100,7 +81,7 @@ export interface paths {
             cookie?: never;
         };
         /** Run Stream */
-        get: operations["run_stream_api_run__run_id__stream_get"];
+        get: operations["run_stream_api_runs__run_id__stream_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -263,6 +244,13 @@ export interface components {
             labels: string[];
             /** Matrix */
             matrix: number[][];
+        };
+        /** CreateRunRequest */
+        CreateRunRequest: {
+            /** Dataset Id */
+            dataset_id: string;
+            /** Target */
+            target: string;
         };
         /** DatasetResponse */
         DatasetResponse: {
@@ -492,17 +480,38 @@ export interface operations {
             };
         };
     };
-    create_run_api_run_post: {
+    list_runs_api_runs_get: {
         parameters: {
-            query: {
-                dataset_id: string;
-                target: string;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResult"][];
+                };
+            };
+        };
+    };
+    create_run_api_runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRunRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -524,44 +533,12 @@ export interface operations {
             };
         };
     };
-    get_result_api_run__run_id__result_get: {
+    get_result_api_runs__run_id__result_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    download_artifact_api_run__run_id__download__kind__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run_id: string;
-                kind: string;
             };
             cookie?: never;
         };
@@ -587,11 +564,14 @@ export interface operations {
             };
         };
     };
-    list_runs_api_runs_get: {
+    download_artifact_api_runs__run_id__download__kind__get: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                run_id: string;
+                kind: "model" | "predictions" | "report" | "cleaned" | "pdf";
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -602,12 +582,21 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RunResult"][];
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
     };
-    run_stream_api_run__run_id__stream_get: {
+    run_stream_api_runs__run_id__stream_get: {
         parameters: {
             query?: never;
             header?: never;
