@@ -5,7 +5,9 @@ import pandas as pd
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from app.core.config import settings
+from app.core.profiling import build_profile
 from app.schemas.dataset import ColumnInfo, DatasetResponse
+from app.schemas.profile import ProfileResponse
 
 router = APIRouter()
 
@@ -82,3 +84,14 @@ async def upload_dataset(file: UploadFile = File(...)) -> DatasetResponse:
         columns=columns,
         preview=preview_records,
     )
+
+
+@router.get("/datasets/{dataset_id}/profile", response_model=ProfileResponse)
+def profile_dataset(dataset_id: str) -> ProfileResponse:
+    """Compute an on-demand statistical profile of a stored dataset."""
+    try:
+        return build_profile(dataset_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Dataset '{dataset_id}' not found.")
+    except Exception as exc:  # noqa: BLE001 - surface profiling errors to the user
+        raise HTTPException(status_code=422, detail=f"Could not profile dataset: {exc}")

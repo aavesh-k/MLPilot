@@ -46,7 +46,13 @@ from sklearn.impute import SimpleImputer
 
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.schemas.run import RunResult, ModelResult, FeatureImportance
+from app.schemas.run import (
+    RunResult,
+    ModelResult,
+    FeatureImportance,
+    CleaningSummary,
+    CappedColumn,
+)
 
 logger = get_logger(__name__)
 
@@ -93,6 +99,70 @@ def detect_problem_type(y: pd.Series) -> tuple[str, str]:
             f"has only {nunique} distinct values (low cardinality).",
         )
     return "regression", f"is continuous with {nunique} distinct values."
+
+
+IQR_MULTIPLIER = 1.5
+
+
+def clean_dataframe(df: pd.DataFrame, target: str) -> tuple[pd.DataFrame, CleaningSummary]:
+    """Explicit, visible cleaning applied before training.
+
+    Drops duplicate rows, drops constant/all-empty columns, and caps numeric
+    outliers to the IQR fences (excluding the target). Imputation/scaling/encoding
+    stay inside the model pipeline; the strategy is recorded here for transparency.
+    Returns the cleaned dataframe and a summary of what changed.
+    """
+    rows_before = len(df)
+
+    # 1. Drop exact duplicate rows.
+    deduped = df.drop_duplicates()
+    dropped_dupes = rows_before - len(deduped)
+    df = deduped
+
+    # 2. Drop constant / all-empty columns (never the target).
+    dropped_cols: list[str] = []
+    for c in df.columns:
+        if c == target:
+            continue
+        if df[c].isna().all() or df[c].nunique(dropna=True) <= 1:
+            dropped_cols.append(c)
+    if dropped_cols:
+        df = df.drop(columns=dropped_cols)
+
+    # 3. IQR outlier capping on numeric feature columns (never the target).
+    capped_cols: list[CappedColumn] = []
+    numeric_features = [
+        c
+        for c in df.columns
+        if c != target and pd.api.types.is_numeric_dtype(df[c])
+    ]
+    df = df.copy()
+    for c in numeric_features:
+        col = df[c]
+        q1 = col.quantile(0.25)
+        q3 = col.quantile(0.75)
+        iqr = q3 - q1
+        if not np.isfinite(iqr) or iqr == 0:
+            continue
+        low = q1 - IQR_MULTIPLIER * iqr
+        high = q3 + IQR_MULTIPLIER * iqr
+        n_capped = int(((col < low) | (col > high)).sum())
+        if n_capped > 0:
+            df[c] = col.clip(lower=low, upper=high)
+            capped_cols.append(CappedColumn(col=str(c), count=n_capped))
+
+    # Record the imputation strategy applied later inside the pipeline.
+    impute_strategy = {"numeric": "median", "categorical": "most_frequent"}
+
+    summary = CleaningSummary(
+        dropped_dupes=int(dropped_dupes),
+        dropped_cols=[str(c) for c in dropped_cols],
+        capped_cols=capped_cols,
+        impute_strategy=impute_strategy,
+        rows_before=int(rows_before),
+        rows_after=int(len(df)),
+    )
+    return df, summary
 
 
 def _build_preprocessor(numeric: list[str], categorical: list[str]) -> ColumnTransformer:
@@ -244,15 +314,32 @@ def train_and_compare(
     problem_type, reason = detect_problem_type(y)
     emit({"type": "step", "name": "analyze", "explanation": f"Detected a {problem_type} problem — {reason}", "pct": 35})
 
-    # Drop unusable feature columns: all-missing or constant (no signal).
-    X = df.drop(columns=[target])
-    constant_cols = [c for c in X.columns if X[c].nunique(dropna=True) <= 1]
-    if constant_cols:
-        X = X.drop(columns=constant_cols)
+    # Explicit cleaning stage: drop duplicates, drop constant/all-empty columns,
+    # IQR-cap numeric outliers. Then drop rows missing the target.
+    run_dir.mkdir(parents=True, exist_ok=True)
+    cleaned_df, cleaning = clean_dataframe(df, target)
+    cleaned_df = cleaned_df.loc[cleaned_df[target].notna()]
+    cleaning.rows_after = int(len(cleaned_df))
+    cleaned_path = run_dir / "cleaned.csv"
+    cleaned_df.to_csv(cleaned_path, index=False)
 
-    # Drop rows missing the target; impute features later in the pipeline.
-    mask = y.notna()
-    X, y = X.loc[mask], y.loc[mask]
+    cap_note = (
+        f"capped outliers in {len(cleaning.capped_cols)} column(s)"
+        if cleaning.capped_cols
+        else "no outliers to cap"
+    )
+    emit({
+        "type": "step",
+        "name": "clean",
+        "explanation": (
+            f"Cleaned data — dropped {cleaning.dropped_dupes:,} duplicate row(s), "
+            f"{len(cleaning.dropped_cols)} constant/empty column(s), {cap_note}."
+        ),
+        "pct": 42,
+    })
+
+    X = cleaned_df.drop(columns=[target])
+    y = cleaned_df[target]
     numeric = [c for c in X.columns if pd.api.types.is_numeric_dtype(X[c])]
     categorical = [c for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
 
@@ -349,10 +436,12 @@ def train_and_compare(
         models=results,
         feature_importance=importances,
         insights=insights,
+        cleaning=cleaning,
         artifacts={
             "model": model_path.name,
             "predictions": preds_path.name,
             "report": report_path.name,
+            "cleaned": cleaned_path.name,
         },
         created_at=datetime.now().isoformat(timespec="seconds"),
     )
@@ -380,6 +469,20 @@ def train_and_compare(
         else:
             row = f"| {r.rank} | {r.name} | {r.metrics.get('r2', 0):.4f} | {r.metrics.get('rmse', 0):.4f} | {r.metrics.get('mae', 0):.4f} | {r.cv_mean:.4f} | {r.cv_std:.4f} |"
         lines.append(row)
+    lines += ["", "## Cleaning summary", ""]
+    lines += [
+        f"- Rows: {cleaning.rows_before:,} → {cleaning.rows_after:,} "
+        f"(dropped {cleaning.dropped_dupes:,} duplicate row(s))",
+        f"- Dropped columns: {', '.join(cleaning.dropped_cols) if cleaning.dropped_cols else 'none'}",
+        f"- Outlier-capped columns: "
+        + (
+            ", ".join(f"{c.col} ({c.count})" for c in cleaning.capped_cols)
+            if cleaning.capped_cols
+            else "none"
+        ),
+        f"- Imputation: numeric → {cleaning.impute_strategy.get('numeric')}, "
+        f"categorical → {cleaning.impute_strategy.get('categorical')}",
+    ]
     lines += ["", "## Key insights", ""]
     lines += [f"- {i}" for i in insights]
     if importances:

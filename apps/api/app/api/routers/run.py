@@ -50,11 +50,27 @@ def create_run(
     return RunResponse(run_id=run_id)
 
 
-def _load_result(run_id: str) -> RunResult | None:
+def _find_run_dir(run_id: str) -> Path | None:
+    """Resolve a run's directory from memory, or fall back to disk.
+
+    Runs live under ``runs/<dataset_id>/<run_id>/``. The in-memory map is lost on
+    restart, so we scan for a directory matching the run_id when it isn't cached.
+    """
     meta = _runs.get(run_id)
-    if not meta:
+    if meta:
+        return meta.run_dir
+    for dataset_dir in settings.runs_dir.iterdir():
+        candidate = dataset_dir / run_id
+        if candidate.is_dir() and (candidate / "result.json").exists():
+            return candidate
+    return None
+
+
+def _load_result(run_id: str) -> RunResult | None:
+    run_dir = _find_run_dir(run_id)
+    if run_dir is None:
         return None
-    result_path = meta.run_dir / "result.json"
+    result_path = run_dir / "result.json"
     if not result_path.exists():
         return None
     return RunResult.model_validate_json(result_path.read_text(encoding="utf-8"))
@@ -70,14 +86,14 @@ def get_result(run_id: str) -> RunResult:
 
 @router.get("/run/{run_id}/download/{kind}")
 def download_artifact(run_id: str, kind: str) -> FileResponse:
-    meta = _runs.get(run_id)
-    if not meta:
+    run_dir = _find_run_dir(run_id)
+    if run_dir is None:
         raise HTTPException(status_code=404, detail="Run not found.")
     result = _load_result(run_id)
     if result is None or kind not in result.artifacts:
         raise HTTPException(status_code=404, detail=f"Artifact '{kind}' not available.")
 
-    file_path = meta.run_dir / result.artifacts[kind]
+    file_path = run_dir / result.artifacts[kind]
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Artifact file missing.")
 
@@ -85,6 +101,7 @@ def download_artifact(run_id: str, kind: str) -> FileResponse:
         "model": "application/octet-stream",
         "predictions": "text/csv",
         "report": "text/markdown",
+        "cleaned": "text/csv",
     }.get(kind, "application/octet-stream")
     return FileResponse(file_path, media_type=media, filename=f"{run_id}_{kind}{file_path.suffix}")
 

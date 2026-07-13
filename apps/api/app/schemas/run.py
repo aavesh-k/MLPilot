@@ -49,6 +49,20 @@ class FeatureImportance(BaseModel):
     importance: float
 
 
+class CappedColumn(BaseModel):
+    col: str
+    count: int
+
+
+class CleaningSummary(BaseModel):
+    dropped_dupes: int
+    dropped_cols: list[str]
+    capped_cols: list[CappedColumn]
+    impute_strategy: dict[str, str]
+    rows_before: int
+    rows_after: int
+
+
 class RunResult(BaseModel):
     run_id: str
     dataset_id: str
@@ -61,5 +75,6 @@ class RunResult(BaseModel):
     models: list[ModelResult]
     feature_importance: list[FeatureImportance]
     insights: list[str]
+    cleaning: CleaningSummary
     artifacts: dict[str, str]
     created_at: str
